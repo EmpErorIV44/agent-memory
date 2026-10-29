@@ -1,0 +1,16 @@
+[package]
+name = "memory-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+sha2.workspace = true
+pulldown-cmark.workspace = true
+cap-std.workspace = true
+cap-primitives.workspace = true
+serde.workspace = true
+serde_yaml_ng.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
