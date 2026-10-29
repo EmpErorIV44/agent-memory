@@ -50,7 +50,7 @@ async fn scenario() -> Result<()> {
     let tools = client.list_all_tools().await?;
     let mut names: Vec<_> = tools.iter().map(|t| t.name.as_ref()).collect();
     names.sort();
-    assert_eq!(names, ["memory_get", "memory_search"]);
+    assert_eq!(names, ["memory_get", "memory_search", "memory_sources"]);
 
     let result = call(
         &client,
@@ -142,4 +142,125 @@ async fn scenario() -> Result<()> {
 #[tokio::test]
 async fn stdio_search_get_scope_and_refresh() -> Result<()> {
     tokio::time::timeout(Duration::from_secs(30), scenario()).await?
+}
+
+async fn write_scenario() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let db = temp.path().join("mcp.sqlite");
+    let writable = temp.path().join("writable");
+    let readonly = temp.path().join("readonly");
+    std::fs::create_dir(&writable)?;
+    std::fs::create_dir(&readonly)?;
+    let (source_id, readonly_id) = {
+        let store = Store::open(&db)?;
+        store.create_project("banking")?;
+        store.create_project("storefront")?;
+        (
+            store.register_source("banking", &writable, true)?,
+            store.register_source("banking", &readonly, false)?,
+        )
+    };
+    let launch = |write: bool| {
+        let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-memory"));
+        command
+            .arg("--database")
+            .arg(&db)
+            .args(["mcp", "--project", "banking"]);
+        if write {
+            command.args(["--allow-write", "--write-policy", "verified"]);
+        }
+        TokioChildProcess::new(command)
+    };
+    let client = ().serve(launch(false)?).await?;
+    assert!(!client
+        .list_all_tools()
+        .await?
+        .iter()
+        .any(|t| t.name == "memory_write"));
+    let result = call(&client, "memory_sources", json!({"project":"banking"})).await?;
+    assert!(result.structured_content.unwrap()["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|s| s["can_write"] == false));
+    let args = json!({"project":"banking", "source_id":source_id, "path":"note.md", "content":"# Note\nwritefrommcp\n"});
+    let result = call(&client, "memory_write", args.clone()).await;
+    assert!(result.is_err() || result.unwrap().is_error == Some(true));
+    assert!(!writable.join("note.md").exists());
+    client.cancel().await?;
+
+    let client = ().serve(launch(true)?).await?;
+    assert!(client
+        .list_all_tools()
+        .await?
+        .iter()
+        .any(|t| t.name == "memory_write"));
+    let result = call(&client, "memory_sources", json!({"project":"banking"})).await?;
+    let sources = result.structured_content.unwrap();
+    assert!(sources["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s["source_id"] == source_id && s["can_write"] == true));
+    for invalid in [
+        json!({"project":"storefront", "source_id":source_id, "path":"note.md", "content":"# Denied"}),
+        json!({"project":"banking", "source_id":readonly_id, "path":"note.md", "content":"# Denied"}),
+        json!({"project":"banking", "source_id":source_id, "path":"../escape.md", "content":"# Denied"}),
+    ] {
+        assert_eq!(
+            call(&client, "memory_write", invalid).await?.is_error,
+            Some(true)
+        );
+    }
+    let result = call(&client, "memory_write", args.clone()).await?;
+    assert_ne!(result.is_error, Some(true));
+    assert_eq!(result.structured_content.unwrap()["indexed"], true);
+    assert_eq!(
+        call(&client, "memory_write", args).await?.is_error,
+        Some(true)
+    );
+
+    let result = call(
+        &client,
+        "memory_search",
+        json!({"project":"banking", "query":"writefrommcp"}),
+    )
+    .await?;
+    let hit = result.structured_content.unwrap()["hits"][0].clone();
+    let result = call(&client, "memory_get", json!({"project":"banking", "chunk_id":hit["chunk_id"], "content_hash":hit["content_hash"], "include_document":true})).await?;
+    let document = result.structured_content.unwrap()["document"].clone();
+    assert_eq!(document["content"], "# Note\nwritefrommcp\n");
+    let args = json!({"project":"banking", "source_id":source_id, "path":"note.md", "content":"# Note\nupdatedfrommcp\n", "expected_hash":document["content_hash"]});
+    let result = call(&client, "memory_write", args.clone()).await?;
+    assert_ne!(result.is_error, Some(true));
+    assert_eq!(
+        call(&client, "memory_write", args).await?.is_error,
+        Some(true)
+    );
+    let result = call(
+        &client,
+        "memory_search",
+        json!({"project":"banking", "query":"updatedfrommcp"}),
+    )
+    .await?;
+    assert_eq!(
+        result.structured_content.unwrap()["hits"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        std::fs::read_to_string(writable.join("note.md"))?,
+        "# Note\nupdatedfrommcp\n"
+    );
+    assert!(!readonly.join("note.md").exists());
+    assert!(!temp.path().join("escape.md").exists());
+    client.cancel().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn stdio_write_permissions_create_update_and_conflicts() -> Result<()> {
+    tokio::time::timeout(Duration::from_secs(30), write_scenario()).await?
 }

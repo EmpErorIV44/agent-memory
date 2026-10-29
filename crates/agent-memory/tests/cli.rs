@@ -45,3 +45,51 @@ fn markdown_to_cli_search_is_scoped() {
     assert!(result.contains("shopauthmarker"));
     assert!(!result.contains("bankauthmarker"));
 }
+
+#[test]
+fn writable_source_and_cli_create_update() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = temp.path().join("index.sqlite");
+    let notes = temp.path().join("notes");
+    std::fs::create_dir(&notes).unwrap();
+    let input = temp.path().join("input.md");
+    std::fs::write(&input, "# First\ncliwritemarker\n").unwrap();
+    run(&db, &["project", "create", "demo"]);
+    run(
+        &db,
+        &[
+            "source",
+            "add",
+            "--project",
+            "demo",
+            "--write",
+            notes.to_str().unwrap(),
+        ],
+    );
+    let sources: serde_json::Value =
+        serde_json::from_str(&run(&db, &["source", "list", "--project", "demo"])).unwrap();
+    assert_eq!(sources[0]["can_write"], true);
+    let source_id = sources[0]["source_id"].to_string();
+    let args = [
+        "write",
+        "--project",
+        "demo",
+        "--source-id",
+        &source_id,
+        "--path",
+        "note.md",
+        "--content-file",
+        input.to_str().unwrap(),
+    ];
+    let saved: serde_json::Value = serde_json::from_str(&run(&db, &args)).unwrap();
+    assert_eq!(saved["indexed"], true);
+    assert!(run(&db, &["search", "--project", "demo", "cliwritemarker"]).contains("note.md:"));
+    std::fs::write(&input, "# Updated\ncliupdatedmarker\n").unwrap();
+    let mut args = args.to_vec();
+    args.extend(["--expected-hash", saved["content_hash"].as_str().unwrap()]);
+    run(&db, &args);
+    assert_eq!(
+        std::fs::read_to_string(notes.join("note.md")).unwrap(),
+        "# Updated\ncliupdatedmarker\n"
+    );
+}

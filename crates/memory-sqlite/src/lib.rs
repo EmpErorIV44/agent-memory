@@ -7,6 +7,31 @@ pub struct Store {
     connection: Connection,
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct SourceInfo {
+    pub source_id: i64,
+    pub root_path: String,
+    pub can_write: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct FullDocument {
+    pub source_id: i64,
+    pub path: String,
+    pub content_hash: String,
+    pub content: String,
+}
+
+/// A saved Markdown file may outlive a failed index update. Do not retry the write blindly.
+#[derive(Debug, serde::Serialize)]
+pub struct WriteResult {
+    pub source_id: i64,
+    pub path: String,
+    pub content_hash: String,
+    pub indexed: bool,
+    pub index_error: Option<String>,
+}
+
 /// Counts committed document changes across the project's readable sources.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct IndexStats {
@@ -66,6 +91,11 @@ impl Store {
     }
 
     pub fn add_source(&self, project: &str, path: &Path) -> Result<()> {
+        self.register_source(project, path, false).map(|_| ())
+    }
+
+    /// Owner-only registration: explicitly set the binding's write permission.
+    pub fn register_source(&self, project: &str, path: &Path, writable: bool) -> Result<i64> {
         let project_id = self.project_id(project)?;
         let root = path
             .canonicalize()
@@ -79,9 +109,60 @@ impl Store {
             "INSERT INTO sources(root_path) VALUES (?1) ON CONFLICT(root_path) DO NOTHING",
             [root],
         )?;
-        tx.execute("INSERT INTO project_sources(project_id, source_id) SELECT ?1, id FROM sources WHERE root_path = ?2 ON CONFLICT DO NOTHING", params![project_id, root])?;
+        let source_id: i64 = tx.query_row(
+            "SELECT id FROM sources WHERE root_path = ?1",
+            [root],
+            |row| row.get(0),
+        )?;
+        tx.execute("INSERT INTO project_sources(project_id, source_id, can_write) VALUES (?1, ?2, ?3) ON CONFLICT(project_id, source_id) DO UPDATE SET can_write = excluded.can_write", params![project_id, source_id, writable])?;
         tx.commit()?;
-        Ok(())
+        Ok(source_id)
+    }
+
+    pub fn sources(&self, project: &str) -> Result<Vec<SourceInfo>> {
+        let project_id = self.project_id(project)?;
+        let mut statement = self.connection.prepare("SELECT s.id, s.root_path, ps.can_write FROM sources s JOIN project_sources ps ON ps.source_id = s.id WHERE ps.project_id = ?1 AND ps.can_read = 1 ORDER BY s.id")?;
+        let rows = statement.query_map([project_id], |row| {
+            Ok(SourceInfo {
+                source_id: row.get(0)?,
+                root_path: row.get(1)?,
+                can_write: row.get(2)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// File publication and SQLite cannot be one atomic transaction: Markdown is authoritative.
+    pub fn write(
+        &mut self,
+        project: &str,
+        source_id: i64,
+        path: &str,
+        content: &str,
+        expected_hash: Option<&str>,
+    ) -> Result<WriteResult> {
+        let project_id = self.project_id(project)?;
+        // Serialize with permission changes and SQLite writers until file publication completes.
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let root: String = tx.query_row("SELECT s.root_path FROM sources s JOIN project_sources ps ON ps.source_id = s.id WHERE s.id = ?1 AND ps.project_id = ?2 AND ps.can_read = 1 AND ps.can_write = 1", params![source_id, project_id], |row| row.get(0)).optional()?.context("source not found or write access denied")?;
+        let mode = match expected_hash {
+            Some(expected_hash) => memory_core::WriteMode::Update { expected_hash },
+            None => memory_core::WriteMode::Create,
+        };
+        let content_hash = memory_core::write_markdown(Path::new(&root), path, content, mode)?;
+        let refresh = tx
+            .commit()
+            .map_err(anyhow::Error::from)
+            .and_then(|_| self.index(project));
+        Ok(WriteResult {
+            source_id,
+            path: path.to_owned(),
+            content_hash,
+            indexed: refresh.is_ok(),
+            index_error: refresh.err().map(|error| format!("{error:#}")),
+        })
     }
 
     /// Reconcile readable sources atomically; failed scans preserve the previous index.
@@ -188,5 +269,30 @@ impl Store {
                 source_id: row.get(7)?, content_hash: row.get(8)?,
             }),
         ).optional()?)
+    }
+
+    /// Full original Markdown (including frontmatter), authorized via the chunk scope.
+    pub fn get_document(
+        &self,
+        project: &str,
+        chunk_id: i64,
+        content_hash: &str,
+    ) -> Result<Option<FullDocument>> {
+        let Some(hit) = self.get(project, chunk_id, content_hash)? else {
+            return Ok(None);
+        };
+        let project_id = self.project_id(project)?;
+        let root: String = self.connection.query_row("SELECT s.root_path FROM sources s JOIN project_sources ps ON ps.source_id = s.id WHERE s.id = ?1 AND ps.project_id = ?2 AND ps.can_read = 1", params![hit.source_id, project_id], |row| row.get(0))?;
+        let content = memory_core::read_markdown(Path::new(&root), &hit.path)?;
+        anyhow::ensure!(
+            memory_core::content_hash(content.as_bytes()) == content_hash,
+            "document changed on disk; repeat memory_search"
+        );
+        Ok(Some(FullDocument {
+            source_id: hit.source_id,
+            path: hit.path,
+            content_hash: hit.content_hash,
+            content,
+        }))
     }
 }
