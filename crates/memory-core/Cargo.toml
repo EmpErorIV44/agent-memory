@@ -1,0 +1,9 @@
+[package]
+name = "memory-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+sha2.workspace = true
+pulldown-cmark.workspace = true
