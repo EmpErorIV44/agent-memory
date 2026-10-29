@@ -1,0 +1,16 @@
+[workspace]
+members = ["crates/memory-core", "crates/memory-sqlite", "crates/agent-memory"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
+sha2 = "0.10"
+pulldown-cmark = "0.13"
+tempfile = "3"
