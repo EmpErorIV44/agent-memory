@@ -7,7 +7,9 @@ pub mod config;
 mod index;
 mod memories;
 mod registry;
+mod revisions;
 pub use memories::MemoryRecord;
+pub use memory_core::{Revision, RevisionDocument};
 
 pub struct Store {
     connection: Connection,
@@ -37,6 +39,9 @@ pub struct WriteResult {
     pub content_hash: String,
     pub indexed: bool,
     pub index_error: Option<String>,
+    /// The document was saved, but its durable journal needs finalization/recovery.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history_error: Option<String>,
 }
 
 /// Counts committed document changes across the project's readable sources.
@@ -196,7 +201,22 @@ impl Store {
             Some(expected_hash) => memory_core::WriteMode::Update { expected_hash },
             None => memory_core::WriteMode::Create,
         };
-        let content_hash = memory_core::write_markdown(Path::new(&root), path, content, mode)?;
+        let (content_hash, history_error) =
+            match memory_core::write_markdown(Path::new(&root), path, content, mode) {
+                Ok(content_hash) => (content_hash, None),
+                Err(error) => {
+                    if let Some(published) =
+                        error.downcast_ref::<memory_core::PublishedWriteError>()
+                    {
+                        (
+                            published.content_hash.clone(),
+                            Some(published.to_string()),
+                        )
+                    } else {
+                        return Err(error);
+                    }
+                }
+            };
         let refresh = tx
             .commit()
             .map_err(anyhow::Error::from)
@@ -207,6 +227,7 @@ impl Store {
             content_hash,
             indexed: refresh.is_ok(),
             index_error: refresh.err().map(|error| format!("{error:#}")),
+            history_error,
         })
     }
 

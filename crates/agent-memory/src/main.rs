@@ -44,6 +44,11 @@ enum Command {
         #[command(subcommand)]
         command: MemoryCommand,
     },
+    /// Inspect durable Markdown revisions or restore one as a new guarded write.
+    History {
+        #[command(subcommand)]
+        command: HistoryCommand,
+    },
     /// Save complete Markdown from a file; source write permission is required.
     Write {
         #[arg(long)]
@@ -100,6 +105,41 @@ enum MemoryCommand {
         #[arg(long)]
         project: String,
         id: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum HistoryCommand {
+    List {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+        #[arg(long)]
+        path: String,
+    },
+    Get {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+        #[arg(long)]
+        path: String,
+        #[arg(long)]
+        revision_id: String,
+    },
+    Restore {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+        #[arg(long)]
+        path: String,
+        #[arg(long)]
+        revision_id: String,
+        /// Current complete-document SHA-256; restoration never force-overwrites.
+        #[arg(long)]
+        expected_hash: String,
     },
 }
 
@@ -170,6 +210,43 @@ async fn main() -> Result<()> {
                 .context("Memory not found or inaccessible")?;
             println!("{}", serde_json::to_string_pretty(&memory)?);
         }
+        Command::History { command } => match command {
+            HistoryCommand::List {
+                project,
+                source_id,
+                path,
+            } => println!(
+                "{}",
+                serde_json::to_string_pretty(&store.list_revisions(&project, source_id, &path)?)?
+            ),
+            HistoryCommand::Get {
+                project,
+                source_id,
+                path,
+                revision_id,
+            } => {
+                let revision = store
+                    .get_revision(&project, source_id, &path, &revision_id)?
+                    .context("Revision not found or inaccessible")?;
+                println!("{}", serde_json::to_string_pretty(&revision)?);
+            }
+            HistoryCommand::Restore {
+                project,
+                source_id,
+                path,
+                revision_id,
+                expected_hash,
+            } => println!(
+                "{}",
+                serde_json::to_string_pretty(&store.restore_revision(
+                    &project,
+                    source_id,
+                    &path,
+                    &revision_id,
+                    &expected_hash,
+                )?)?
+            ),
+        },
         Command::Write {
             project,
             source_id,

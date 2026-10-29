@@ -74,5 +74,14 @@ status, evidence and relations. A saved evidence reference is not verification,
 and a `supersedes` relation does not automatically change another record's status.
 Structured responses may omit inaccessible or unresolved links; never use one
 to replace the full source document or reconstruct its frontmatter for an update.
-Durable revisions, Git evidence verification and automatic truth resolution are
-separate capabilities.
+When available, use `memory_history` and `memory_revision_get` to inspect complete
+past versions by source and path. History is path-scoped and does not follow a
+rename automatically. Use `memory_restore` only for an authorized restoration,
+with the CURRENT full-document hash; restoring older text creates a new revision
+and preserves later ones. A historical revision is not current truth.
+An entry with `pending=true` is an observed interrupted-write snapshot, not yet
+physically finalized; an external edit can move it to unconfirmed candidates.
+`history_error` in a write/restore response means the Markdown was saved but
+journal finalization needs recovery; do not blindly repeat the write. Retain
+`.agent-memory-history/` with source backups if revisions must survive cloning.
+Git evidence verification and automatic truth resolution are separate capabilities.
