@@ -2,3 +2,5 @@
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+.agent-memory.lock
+.agent-memory-*.tmp

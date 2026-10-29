@@ -17,12 +17,30 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Serve read-only MCP tools over stdin/stdout for explicitly allowed projects.
+    /// Serve MCP tools over stdin/stdout for explicitly allowed projects.
     Mcp {
         #[arg(long, required = true)]
         project: Vec<String>,
+        /// Enable memory_write (also requires a writable source binding).
+        #[arg(long)]
+        allow_write: bool,
+        #[arg(long, value_enum, default_value = "confirm")]
+        write_policy: mcp::WritePolicy,
     },
     Init,
+    /// Save complete Markdown from a file; source write permission is required.
+    Write {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+        #[arg(long)]
+        path: String,
+        #[arg(long)]
+        content_file: PathBuf,
+        #[arg(long)]
+        expected_hash: Option<String>,
+    },
     Project {
         #[command(subcommand)]
         command: ProjectCommand,
@@ -49,22 +67,59 @@ enum ProjectCommand {
 
 #[derive(Subcommand)]
 enum SourceCommand {
+    List {
+        #[arg(long)]
+        project: String,
+    },
     Add {
         #[arg(long)]
         project: String,
         path: PathBuf,
+        /// Allow writes for this project/source binding. Re-register without this flag to revoke.
+        #[arg(long)]
+        write: bool,
     },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    if let Command::Mcp { project } = cli.command {
-        return mcp::run(cli.database, project).await;
+    if let Command::Mcp {
+        project,
+        allow_write,
+        write_policy,
+    } = cli.command
+    {
+        return mcp::run(cli.database, project, allow_write, write_policy).await;
     }
     let mut store = Store::open(&cli.database)?;
     match cli.command {
         Command::Mcp { .. } => unreachable!(),
+        Command::Write {
+            project,
+            source_id,
+            path,
+            content_file,
+            expected_hash,
+        } => {
+            let content = std::fs::read_to_string(content_file)?;
+            let result = store.write(
+                &project,
+                source_id,
+                &path,
+                &content,
+                expected_hash.as_deref(),
+            )?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Command::Source {
+            command: SourceCommand::List { project },
+        } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&store.sources(&project)?)?
+            );
+        }
         Command::Init => println!("Initialized {}", cli.database.display()),
         Command::Project {
             command: ProjectCommand::Create { name },
@@ -73,10 +128,18 @@ async fn main() -> Result<()> {
             println!("Created project {name}");
         }
         Command::Source {
-            command: SourceCommand::Add { project, path },
+            command:
+                SourceCommand::Add {
+                    project,
+                    path,
+                    write,
+                },
         } => {
-            store.add_source(&project, &path)?;
-            println!("Registered {} for {project}", path.display());
+            let source_id = store.register_source(&project, &path, write)?;
+            println!(
+                "Registered {} for {project}: source_id={source_id} can_write={write}",
+                path.display()
+            );
         }
         Command::Index { project } => {
             let stats = store.index(&project)?;

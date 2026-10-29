@@ -1,8 +1,15 @@
 //! Markdown source models, independent of storage and transport.
+mod write;
 use anyhow::{Context, Result};
+use cap_std::fs::Dir;
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use sha2::{Digest, Sha256};
-use std::{fs, path::Path, time::UNIX_EPOCH};
+use std::{io::Read, path::Path};
+pub use write::{read_markdown, write_markdown, WriteMode};
+
+pub fn content_hash(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
 
 #[derive(Debug, Clone)]
 pub struct Chunk {
@@ -24,52 +31,53 @@ pub struct Document {
 /// Read registered Markdown files recursively. Symbolic links are never followed.
 /// A failed read aborts the scan, so callers cannot mistake partial scans for deletions.
 pub fn read_source(root: &Path) -> Result<Vec<Document>> {
-    let root = root.canonicalize().context("resolve source directory")?;
-    anyhow::ensure!(
-        root.is_dir(),
-        "source is not a directory: {}",
-        root.display()
-    );
+    let directory = write::open_root(root).context("open registered source directory")?;
     let mut documents = Vec::new();
-    visit(&root, &root, &mut documents)?;
+    visit(&directory, Path::new(""), &mut documents)?;
     documents.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
     Ok(documents)
 }
 
-fn visit(root: &Path, directory: &Path, documents: &mut Vec<Document>) -> Result<()> {
-    for entry in fs::read_dir(directory).with_context(|| format!("read {}", directory.display()))? {
+fn visit(directory: &Dir, relative: &Path, documents: &mut Vec<Document>) -> Result<()> {
+    for entry in directory.entries().context("read source directory")? {
         let entry = entry?;
         let file_type = entry.file_type()?;
-        let path = entry.path();
+        let name = entry.file_name();
+        let path = relative.join(&name);
         if file_type.is_symlink() {
             continue;
         }
         if file_type.is_dir() {
-            visit(root, &path, documents)?;
+            let parent = directory.try_clone()?.into_std_file();
+            let child = Dir::from_std_file(cap_primitives::fs::open_dir_nofollow(
+                &parent,
+                Path::new(&name),
+            )?);
+            visit(&child, &path, documents)?;
         } else if file_type.is_file()
             && path
                 .extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
         {
-            let canonical = path.canonicalize()?;
-            anyhow::ensure!(
-                canonical.starts_with(root),
-                "file escapes source: {}",
-                path.display()
-            );
-            let bytes = fs::read(&canonical).with_context(|| format!("read {}", path.display()))?;
+            // Resolve from the pinned directory capability, never from an ambient pathname.
+            let mut file = directory
+                .open(&name)
+                .with_context(|| format!("read {}", path.display()))?;
+            let metadata = file.metadata()?;
+            anyhow::ensure!(metadata.is_file(), "Markdown source is not a regular file");
+            let mut bytes = Vec::new();
+            file.read_to_end(&mut bytes)?;
             let text = std::str::from_utf8(&bytes)
                 .with_context(|| format!("Markdown is not UTF-8: {}", path.display()))?;
-            let modified = fs::metadata(&canonical)?
+            let modified = metadata
                 .modified()?
-                .duration_since(UNIX_EPOCH)?;
+                .duration_since(cap_std::time::SystemTime::from_std(std::time::UNIX_EPOCH))?;
             documents.push(Document {
                 relative_path: path
-                    .strip_prefix(root)?
                     .to_str()
                     .context("source path is not UTF-8")?
                     .replace('\\', "/"),
-                content_hash: format!("{:x}", Sha256::digest(&bytes)),
+                content_hash: content_hash(&bytes),
                 byte_size: bytes.len() as u64,
                 file_mtime_ns: modified
                     .as_nanos()

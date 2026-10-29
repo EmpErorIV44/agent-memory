@@ -7,3 +7,8 @@ edition = "2021"
 anyhow.workspace = true
 sha2.workspace = true
 pulldown-cmark.workspace = true
+cap-std.workspace = true
+cap-primitives.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
