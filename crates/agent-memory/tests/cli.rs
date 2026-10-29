@@ -33,7 +33,8 @@ fn markdown_to_cli_search_is_scoped() {
                 fixtures.join(project).to_str().unwrap(),
             ],
         );
-        assert!(run(&db, &["index", "--project", project]).contains("3 documents"));
+        assert!(run(&db, &["index", "--project", project])
+            .contains("added=3 updated=0 unchanged=0 deleted=0"));
     }
     let result = run(&db, &["search", "--project", "banking", "OAuth2"]);
     assert!(result.contains("authentication.md:"));

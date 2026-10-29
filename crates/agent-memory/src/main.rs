@@ -1,3 +1,5 @@
+mod mcp;
+
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -15,6 +17,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Serve read-only MCP tools over stdin/stdout for explicitly allowed projects.
+    Mcp {
+        #[arg(long, required = true)]
+        project: Vec<String>,
+    },
     Init,
     Project {
         #[command(subcommand)]
@@ -49,10 +56,15 @@ enum SourceCommand {
     },
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Command::Mcp { project } = cli.command {
+        return mcp::run(cli.database, project).await;
+    }
     let mut store = Store::open(&cli.database)?;
     match cli.command {
+        Command::Mcp { .. } => unreachable!(),
         Command::Init => println!("Initialized {}", cli.database.display()),
         Command::Project {
             command: ProjectCommand::Create { name },
@@ -66,7 +78,13 @@ fn main() -> Result<()> {
             store.add_source(&project, &path)?;
             println!("Registered {} for {project}", path.display());
         }
-        Command::Index { project } => println!("Indexed {} documents", store.index(&project)?),
+        Command::Index { project } => {
+            let stats = store.index(&project)?;
+            println!(
+                "added={} updated={} unchanged={} deleted={}",
+                stats.added, stats.updated, stats.unchanged, stats.deleted
+            );
+        }
         Command::Search { project, query } => {
             for hit in store.search(&project, &query)? {
                 println!(
