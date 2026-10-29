@@ -1,8 +1,10 @@
 //! Markdown source models, independent of storage and transport.
+mod history;
 mod metadata;
 mod write;
 use anyhow::{Context, Result};
 use cap_std::fs::Dir;
+pub use history::{get_revision, list_revisions, PublishedWriteError, Revision, RevisionDocument};
 pub use metadata::{
     parse_metadata, validate_document_id, DocumentMetadata, Evidence, EvidenceKind, Memory,
     MemoryKind, MemoryStatus, Relation, RelationKind,
@@ -50,6 +52,9 @@ fn visit(directory: &Dir, relative: &Path, documents: &mut Vec<Document>) -> Res
         let entry = entry?;
         let file_type = entry.file_type()?;
         let name = entry.file_name();
+        if name == ".agent-memory-history" {
+            continue;
+        }
         let path = relative.join(&name);
         if file_type.is_symlink() {
             continue;

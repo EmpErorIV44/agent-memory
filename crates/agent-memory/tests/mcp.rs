@@ -55,7 +55,9 @@ async fn scenario() -> Result<()> {
         [
             "memory_get",
             "memory_get_record",
+            "memory_history",
             "memory_list",
+            "memory_revision_get",
             "memory_search",
             "memory_sources"
         ]
@@ -400,4 +402,77 @@ async fn structured_scenario() -> Result<()> {
 #[tokio::test]
 async fn structured_memories_stable_ids_and_authorization_over_stdio() -> Result<()> {
     tokio::time::timeout(Duration::from_secs(30), structured_scenario()).await?
+}
+
+async fn revisions_scenario() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let database = temp.path().join("revisions.sqlite");
+    let source = temp.path().join("notes");
+    std::fs::create_dir(&source)?;
+    let source_id = {
+        let store = Store::open(&database)?;
+        store.create_project("demo")?;
+        store.create_project("other")?;
+        store.register_source("demo", &source, true)?
+    };
+    let launch = |allow_write: bool| {
+        let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-memory"));
+        command.arg("--database").arg(&database).args(["mcp", "--project", "demo", "--project", "other"]);
+        if allow_write { command.arg("--allow-write"); }
+        TokioChildProcess::new(command)
+    };
+    let client = ().serve(launch(true)?).await?;
+    let first = "---\nid: durable-note\n---\n# Note\nfirstrevisionmarker\n";
+    let second = "---\nid: durable-note\n---\n# Note\nsecondrevisionmarker\n";
+    let result = call(&client, "memory_write", json!({"project":"demo", "source_id":source_id,"path":"note.md","content":first})).await?;
+    assert_ne!(result.is_error, Some(true));
+    let first_hash = result.structured_content.unwrap()["content_hash"].clone();
+    let result = call(&client, "memory_write", json!({"project":"demo", "source_id":source_id,"path":"note.md","content":second,"expected_hash":first_hash})).await?;
+    assert_ne!(result.is_error, Some(true));
+    let second_hash = result.structured_content.unwrap()["content_hash"].clone();
+    let history = call(&client, "memory_history", json!({"project":"demo","source_id":source_id,"path":"note.md"})).await?;
+    let revisions = history.structured_content.unwrap()["revisions"].as_array().unwrap().clone();
+    assert_eq!(revisions.len(), 2);
+    assert_eq!(revisions[0]["content_hash"], first_hash);
+    assert_eq!(revisions[1]["previous_hash"], first_hash);
+    let id = revisions[0]["id"].clone();
+    let revision = call(&client, "memory_revision_get", json!({"project":"demo","source_id":source_id,"path":"note.md","revision_id":id})).await?;
+    assert_eq!(revision.structured_content.unwrap()["revision"]["content"], first);
+    for (name, arguments) in [
+        ("memory_history", json!({"project":"other","source_id":source_id,"path":"note.md"})),
+        ("memory_revision_get", json!({"project":"other","source_id":source_id,"path":"note.md","revision_id":id})),
+        ("memory_revision_get", json!({"project":"demo","source_id":source_id,"path":"../escape.md","revision_id":id})),
+        ("memory_restore", json!({"project":"demo","source_id":source_id,"path":"note.md","revision_id":id,"expected_hash":first_hash})),
+    ] {
+        assert_eq!(call(&client, name, arguments).await?.is_error, Some(true));
+    }
+    assert_eq!(std::fs::read_to_string(source.join("note.md"))?, second);
+    let restored = call(&client, "memory_restore", json!({"project":"demo","source_id":source_id,"path":"note.md","revision_id":id,"expected_hash":second_hash})).await?;
+    assert_ne!(restored.is_error, Some(true));
+    assert_eq!(restored.structured_content.unwrap()["indexed"], true);
+    assert_eq!(std::fs::read_to_string(source.join("note.md"))?, first);
+    let history = call(&client, "memory_history", json!({"project":"demo","source_id":source_id,"path":"note.md"})).await?;
+    let revisions = history.structured_content.unwrap()["revisions"].as_array().unwrap().clone();
+    assert_eq!(revisions.len(), 3);
+    assert_eq!(revisions[2]["content_hash"], first_hash);
+    assert_eq!(revisions[2]["previous_hash"], second_hash);
+    assert_ne!(revisions[2]["id"], id);
+    client.cancel().await?;
+
+    let client = ().serve(launch(false)?).await?;
+    let tools = client.list_all_tools().await?;
+    assert!(tools.iter().any(|tool| tool.name == "memory_history"));
+    assert!(tools.iter().any(|tool| tool.name == "memory_revision_get"));
+    assert!(!tools.iter().any(|tool| tool.name == "memory_restore"));
+    let history = call(&client, "memory_history", json!({"project":"demo","source_id":source_id,"path":"note.md"})).await?;
+    assert_eq!(history.structured_content.unwrap()["revisions"].as_array().unwrap().len(), 3);
+    let denied = call(&client, "memory_restore", json!({"project":"demo","source_id":source_id,"path":"note.md","revision_id":id,"expected_hash":first_hash})).await;
+    assert!(denied.is_err() || denied.unwrap().is_error == Some(true));
+    client.cancel().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn durable_history_read_restore_and_permissions_over_stdio() -> Result<()> {
+    tokio::time::timeout(Duration::from_secs(30), revisions_scenario()).await?
 }
