@@ -5,6 +5,8 @@ use std::time::Duration;
 
 pub mod config;
 mod index;
+mod links;
+pub use links::{DocumentLinks, LinkDocument, LinkRecord};
 mod memories;
 mod registry;
 mod revisions;
@@ -75,15 +77,15 @@ impl Store {
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
         let version: i64 = connection.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version > 3 {
+        if version > 4 {
             bail!("unsupported database version {version}");
         }
-        if version < 3 {
+        if version < 4 {
             // A second process can finish the migration while this one waits for the lock.
             // Recheck under BEGIN IMMEDIATE, and keep all DDL inside the RAII transaction.
             let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let current: i64 = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-            anyhow::ensure!(current <= 3, "unsupported database version {current}");
+            anyhow::ensure!(current <= 4, "unsupported database version {current}");
             for (target, migration) in [
                 (1, include_str!("../../../migrations/001_initial.sql")),
                 (
@@ -93,6 +95,10 @@ impl Store {
                 (
                     3,
                     include_str!("../../../migrations/003_search_metadata.sql"),
+                ),
+                (
+                    4,
+                    include_str!("../../../migrations/004_document_links.sql"),
                 ),
             ] {
                 if current < target {

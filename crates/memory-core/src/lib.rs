@@ -1,10 +1,12 @@
 //! Markdown source models, independent of storage and transport.
 mod history;
+pub mod links;
 mod metadata;
 mod write;
 use anyhow::{Context, Result};
 use cap_std::fs::Dir;
 pub use history::{get_revision, list_revisions, PublishedWriteError, Revision, RevisionDocument};
+pub use links::{extract_links, DocumentLink};
 pub use metadata::{
     parse_metadata, validate_document_id, DocumentMetadata, Evidence, EvidenceKind, Memory,
     MemoryKind, MemoryStatus, Relation, RelationKind,
@@ -35,6 +37,7 @@ pub struct Document {
     pub byte_size: u64,
     pub file_mtime_ns: i64,
     pub chunks: Vec<Chunk>,
+    pub links: Vec<DocumentLink>,
 }
 
 /// Read registered Markdown files recursively. Symbolic links are never followed.
@@ -100,6 +103,7 @@ fn visit(directory: &Dir, relative: &Path, documents: &mut Vec<Document>) -> Res
                     .try_into()
                     .context("file modification time overflow")?,
                 chunks: chunk_markdown(text),
+                links: extract_links(text),
             });
         }
     }
