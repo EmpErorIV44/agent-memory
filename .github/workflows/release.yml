@@ -101,7 +101,12 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup target add --toolchain stable "$TARGET"
       - name: Test on the native platform
-        run: cargo +stable test --workspace --locked
+        run: |
+          # macOS TMPDIR can traverse /var -> /private/var. Source-boundary
+          # tests deliberately reject symlink components, so use the real path.
+          TMPDIR=$(python3 -c 'import os, tempfile; print(os.path.realpath(tempfile.gettempdir()))')
+          export TMPDIR
+          cargo +stable test --workspace --locked
       - name: Build release binary
         env:
           TARGET: ${{ matrix.target }}
