@@ -26,6 +26,12 @@ After meaningful work, consider retaining a concise new result: an explicitly
 requested memory, a verified implementation outcome, an accepted decision with
 reasons, or an enduring project constraint. Search for duplicates first. Record
 status and evidence (files, tests, or user decision); clearly label plans as plans.
+Before saving, find and read relevant related notes. Add explicit Markdown links
+when their relevance is grounded; do not invent targets or infer semantic types.
+Use memory_links when available to inspect outgoing links and computed backlinks.
+Backlinks do not require editing target notes. Semantic memory.relations are
+separate: use a meaningful relation kind and an actual target Memory ID only
+when supported by the evidence.
 Do not retain secrets, raw transcripts, speculation, transient logs, or every edit.
 
 Follow the configured write policy and existing user authorization. Under confirm,

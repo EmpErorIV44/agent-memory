@@ -48,7 +48,7 @@ for request_id in (1, 2, 3):
     if request_id not in responses or "error" in responses[request_id]:
         raise SystemExit(f"Request {request_id} failed: {responses.get(request_id)}")
 tools = {tool["name"] for tool in responses[2]["result"]["tools"]}
-required = {"memory_search", "memory_get", "memory_sources", "memory_list",
+required = {"memory_search", "memory_get", "memory_sources", "memory_list", "memory_links",
             "memory_get_record", "memory_history", "memory_revision_get",
             "memory_write", "memory_restore"}
 if not required <= tools:

@@ -119,7 +119,7 @@ python scripts/check-mcp.py examples/mcp-windows.json
 python3 scripts/check-mcp.py examples/mcp-windows.json --from-wsl
 ```
 
-Она выполняет MCP handshake, проверяет девять инструментов, включая историю
+Она выполняет MCP handshake, проверяет десять инструментов, включая историю
 и восстановление, и поиск по реальной базе знаний. После настройки перезапустите
 подключение MCP в клиенте. Клиент запускает собственный процесс через stdin/stdout;
 постоянно запущенный сервер или открытый порт не нужны.
@@ -140,6 +140,8 @@ python3 scripts/check-mcp.py examples/mcp-windows.json --from-wsl
   полного документа можно взять из `memory_list`; передавайте
   `document.content_hash` как `expected_hash` при обновлении.
 - `memory_sources({"project":"banking"})` — доступные источники и права записи.
+- `memory_links({"project":"banking","source_id":1,"path":"note.md","direction":"both"})`
+  — исходящие ссылки и вычисляемые обратные ссылки; см. [формат](docs/links.md).
 - `memory_list({"project":"banking"})` — структурированные знания из YAML
   frontmatter: `Memory`, подтверждения `Evidence` и доступные связи `Relation`.
 - `memory_get_record({"project":"banking","memory_id":"auth-policy"})` —
@@ -170,6 +172,9 @@ python3 scripts/check-mcp.py examples/mcp-windows.json --from-wsl
 
 Явно включаемые коммиты и push Markdown по таймеру или после записи описаны в
 [инструкции Git sync](docs/git-sync.md).
+
+Связи Markdown-заметок, wiki-ссылки и вычисляемые обратные ссылки описаны в
+[инструкции по связям](docs/links.md).
 
 ## Проверка
 

@@ -82,6 +82,17 @@ Under `verified`, the owner permits automatic retention of verified outcomes and
 accepted decisions. That permission does not cover unrelated data or speculative
 conclusions. User instructions can narrow either policy.
 
+## Connect related knowledge
+
+Before saving, search for relevant related notes and read enough to establish
+the connection. Add explicit related Markdown links when grounded; do not invent
+targets, classify relations automatically, or link every note to every other.
+When available, `memory_links(project, source_id, path, direction="both")`
+shows outgoing links and computed incoming backlinks. Backlinks require no
+extra edit to the target note. Relative Markdown and wiki links connect documents;
+`memory.relations` express separate semantic relationships between actual Memory
+IDs. Use a relation kind only when the evidence supports that meaning.
+
 ## Save
 
 1. Use `memory_sources` for the chosen project and select a source with

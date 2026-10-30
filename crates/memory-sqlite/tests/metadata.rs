@@ -94,7 +94,7 @@ fn version_one_migration_backfills_metadata_without_replacing_document_identity(
     let connection = Connection::open(&db)?;
     assert_eq!(
         connection.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))?,
-        3
+        4
     );
     connection.execute_batch("PRAGMA foreign_key_check; INSERT INTO document_chunks_fts(document_chunks_fts, rank) VALUES ('integrity-check', 1);")?;
     Ok(())
@@ -151,7 +151,7 @@ fn concurrent_clients_upgrade_schema_once_under_the_migration_lock() -> Result<(
     let connection = Connection::open(&db)?;
     assert_eq!(
         connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))?,
-        3
+        4
     );
     Ok(())
 }

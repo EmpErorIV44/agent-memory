@@ -37,6 +37,7 @@ pub(crate) fn index_sources(
 
     let mut stats = IndexStats::default();
     let mut projections = Vec::new();
+    let mut link_documents = Vec::new();
     for (source_id, documents) in scans {
         let existing = {
             let mut query = tx.prepare(
@@ -151,6 +152,7 @@ pub(crate) fn index_sources(
                 }
                 id
             };
+            link_documents.push((document_id, document.clone()));
             if let Some(memory) = &document.memory {
                 projections.push((document_id, source_id, memory.clone()));
             }
@@ -163,6 +165,7 @@ pub(crate) fn index_sources(
     for (document_id, source_id, memory) in projections {
         memories::insert(tx, document_id, source_id, &memory, project_scope)?;
     }
+    crate::links::index(tx, &link_documents)?;
     Ok(stats)
 }
 
