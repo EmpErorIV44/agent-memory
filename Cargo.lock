@@ -8,8 +8,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "memory-core",
  "memory-sqlite",
  "rmcp",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",

@@ -1,4 +1,5 @@
 /target/
+/local-feedback/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

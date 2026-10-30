@@ -47,6 +47,13 @@ async fn scenario() -> Result<()> {
         .arg(&db)
         .args(["mcp", "--project", "banking"]);
     let client = ().serve(TokioChildProcess::new(command)?).await?;
+    let instructions = client
+        .peer_info()
+        .and_then(|info| info.instructions.clone())
+        .context("MCP initialization must include the memory bootstrap policy")?;
+    assert!(instructions.contains("At the first connection in each new session"));
+    assert!(instructions.contains("memory_get(include_document=true)"));
+    assert!(instructions.contains("Apply relevant recorded user preferences"));
     let tools = client.list_all_tools().await?;
     let mut names: Vec<_> = tools.iter().map(|t| t.name.as_ref()).collect();
     names.sort();
@@ -417,32 +424,73 @@ async fn revisions_scenario() -> Result<()> {
     };
     let launch = |allow_write: bool| {
         let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-memory"));
-        command.arg("--database").arg(&database).args(["mcp", "--project", "demo", "--project", "other"]);
-        if allow_write { command.arg("--allow-write"); }
+        command.arg("--database").arg(&database).args([
+            "mcp",
+            "--project",
+            "demo",
+            "--project",
+            "other",
+        ]);
+        if allow_write {
+            command.arg("--allow-write");
+        }
         TokioChildProcess::new(command)
     };
     let client = ().serve(launch(true)?).await?;
     let first = "---\nid: durable-note\n---\n# Note\nfirstrevisionmarker\n";
     let second = "---\nid: durable-note\n---\n# Note\nsecondrevisionmarker\n";
-    let result = call(&client, "memory_write", json!({"project":"demo", "source_id":source_id,"path":"note.md","content":first})).await?;
+    let result = call(
+        &client,
+        "memory_write",
+        json!({"project":"demo", "source_id":source_id,"path":"note.md","content":first}),
+    )
+    .await?;
     assert_ne!(result.is_error, Some(true));
     let first_hash = result.structured_content.unwrap()["content_hash"].clone();
     let result = call(&client, "memory_write", json!({"project":"demo", "source_id":source_id,"path":"note.md","content":second,"expected_hash":first_hash})).await?;
     assert_ne!(result.is_error, Some(true));
     let second_hash = result.structured_content.unwrap()["content_hash"].clone();
-    let history = call(&client, "memory_history", json!({"project":"demo","source_id":source_id,"path":"note.md"})).await?;
-    let revisions = history.structured_content.unwrap()["revisions"].as_array().unwrap().clone();
+    let history = call(
+        &client,
+        "memory_history",
+        json!({"project":"demo","source_id":source_id,"path":"note.md"}),
+    )
+    .await?;
+    let revisions = history.structured_content.unwrap()["revisions"]
+        .as_array()
+        .unwrap()
+        .clone();
     assert_eq!(revisions.len(), 2);
     assert_eq!(revisions[0]["content_hash"], first_hash);
     assert_eq!(revisions[1]["previous_hash"], first_hash);
     let id = revisions[0]["id"].clone();
-    let revision = call(&client, "memory_revision_get", json!({"project":"demo","source_id":source_id,"path":"note.md","revision_id":id})).await?;
-    assert_eq!(revision.structured_content.unwrap()["revision"]["content"], first);
+    let revision = call(
+        &client,
+        "memory_revision_get",
+        json!({"project":"demo","source_id":source_id,"path":"note.md","revision_id":id}),
+    )
+    .await?;
+    assert_eq!(
+        revision.structured_content.unwrap()["revision"]["content"],
+        first
+    );
     for (name, arguments) in [
-        ("memory_history", json!({"project":"other","source_id":source_id,"path":"note.md"})),
-        ("memory_revision_get", json!({"project":"other","source_id":source_id,"path":"note.md","revision_id":id})),
-        ("memory_revision_get", json!({"project":"demo","source_id":source_id,"path":"../escape.md","revision_id":id})),
-        ("memory_restore", json!({"project":"demo","source_id":source_id,"path":"note.md","revision_id":id,"expected_hash":first_hash})),
+        (
+            "memory_history",
+            json!({"project":"other","source_id":source_id,"path":"note.md"}),
+        ),
+        (
+            "memory_revision_get",
+            json!({"project":"other","source_id":source_id,"path":"note.md","revision_id":id}),
+        ),
+        (
+            "memory_revision_get",
+            json!({"project":"demo","source_id":source_id,"path":"../escape.md","revision_id":id}),
+        ),
+        (
+            "memory_restore",
+            json!({"project":"demo","source_id":source_id,"path":"note.md","revision_id":id,"expected_hash":first_hash}),
+        ),
     ] {
         assert_eq!(call(&client, name, arguments).await?.is_error, Some(true));
     }
@@ -451,8 +499,16 @@ async fn revisions_scenario() -> Result<()> {
     assert_ne!(restored.is_error, Some(true));
     assert_eq!(restored.structured_content.unwrap()["indexed"], true);
     assert_eq!(std::fs::read_to_string(source.join("note.md"))?, first);
-    let history = call(&client, "memory_history", json!({"project":"demo","source_id":source_id,"path":"note.md"})).await?;
-    let revisions = history.structured_content.unwrap()["revisions"].as_array().unwrap().clone();
+    let history = call(
+        &client,
+        "memory_history",
+        json!({"project":"demo","source_id":source_id,"path":"note.md"}),
+    )
+    .await?;
+    let revisions = history.structured_content.unwrap()["revisions"]
+        .as_array()
+        .unwrap()
+        .clone();
     assert_eq!(revisions.len(), 3);
     assert_eq!(revisions[2]["content_hash"], first_hash);
     assert_eq!(revisions[2]["previous_hash"], second_hash);
@@ -464,8 +520,19 @@ async fn revisions_scenario() -> Result<()> {
     assert!(tools.iter().any(|tool| tool.name == "memory_history"));
     assert!(tools.iter().any(|tool| tool.name == "memory_revision_get"));
     assert!(!tools.iter().any(|tool| tool.name == "memory_restore"));
-    let history = call(&client, "memory_history", json!({"project":"demo","source_id":source_id,"path":"note.md"})).await?;
-    assert_eq!(history.structured_content.unwrap()["revisions"].as_array().unwrap().len(), 3);
+    let history = call(
+        &client,
+        "memory_history",
+        json!({"project":"demo","source_id":source_id,"path":"note.md"}),
+    )
+    .await?;
+    assert_eq!(
+        history.structured_content.unwrap()["revisions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
     let denied = call(&client, "memory_restore", json!({"project":"demo","source_id":source_id,"path":"note.md","revision_id":id,"expected_hash":first_hash})).await;
     assert!(denied.is_err() || denied.unwrap().is_error == Some(true));
     client.cancel().await?;
@@ -475,4 +542,106 @@ async fn revisions_scenario() -> Result<()> {
 #[tokio::test]
 async fn durable_history_read_restore_and_permissions_over_stdio() -> Result<()> {
     tokio::time::timeout(Duration::from_secs(30), revisions_scenario()).await?
+}
+
+async fn path_document_scenario() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path().join("notes");
+    std::fs::create_dir(&root)?;
+    // No chunks are needed to read a complete document by path.
+    std::fs::write(root.join("empty.md"), "")?;
+    let content = "---\nid: path-note\nmemory:\n  id: path-memory\n  project: demo\n  kind: decision\n  status: accepted\n  summary: Direct read\n---\n# Note\npathreadmarker\n";
+    std::fs::write(root.join("note.md"), content)?;
+    let database = temp.path().join("memory.sqlite");
+    let source_id = {
+        let mut store = Store::open(&database)?;
+        store.create_project("demo")?;
+        store.create_project("other")?;
+        let id = store.register_source("demo", &root, false)?;
+        store.index("demo")?;
+        id
+    };
+    let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_agent-memory"));
+    command.arg("--database").arg(&database).args([
+        "mcp",
+        "--project",
+        "demo",
+        "--project",
+        "other",
+    ]);
+    let client = ().serve(TokioChildProcess::new(command)?).await?;
+    let list = call(&client, "memory_list", json!({"project":"demo"})).await?;
+    assert_ne!(list.is_error, Some(true));
+    let listed = list.structured_content.context("listed records")?;
+    let row = &listed["memories"][0];
+    assert_eq!(row["source_id"], source_id);
+    assert_eq!(row["path"], "note.md");
+    let hash = row["content_hash"]
+        .as_str()
+        .context("listed document hash")?
+        .to_owned();
+    let empty_hash = memory_core::content_hash(b"");
+    let connection = rusqlite::Connection::open(&database)?;
+    let empty_chunks: i64 = connection.query_row(
+        "SELECT count(*) FROM document_chunks c JOIN documents d ON d.id=c.document_id WHERE d.relative_path='empty.md'",
+        [], |row| row.get(0),
+    )?;
+    assert_eq!(empty_chunks, 0);
+    for (path, expected_hash, expected_content) in
+        [("note.md", &hash, content), ("empty.md", &empty_hash, "")]
+    {
+        let result = call(
+            &client,
+            "memory_get",
+            json!({
+                "project":"demo", "source_id":source_id, "path":path,
+                "content_hash":expected_hash,
+            }),
+        )
+        .await?;
+        assert_ne!(result.is_error, Some(true));
+        let value = result.structured_content.context("full path document")?;
+        assert_eq!(value["document"]["content"], expected_content);
+        assert_eq!(value["document"]["content_hash"], *expected_hash);
+        assert!(value.get("chunk").is_none());
+    }
+    for arguments in [
+        json!({"project":"other", "source_id":source_id, "path":"note.md", "content_hash":hash}),
+        json!({"project":"demo", "source_id":source_id, "path":"note.md", "content_hash":"stale"}),
+        json!({"project":"demo", "source_id":source_id, "path":"../note.md", "content_hash":hash}),
+        json!({"project":"demo", "source_id":source_id, "path":"note.md", "chunk_id":1, "content_hash":hash}),
+        json!({"project":"demo", "source_id":source_id, "content_hash":hash}),
+        json!({"project":"demo", "path":"note.md", "content_hash":hash}),
+        json!({"project":"demo", "content_hash":hash}),
+    ] {
+        assert_eq!(
+            call(&client, "memory_get", arguments).await?.is_error,
+            Some(true)
+        );
+    }
+    std::fs::write(root.join("note.md"), "# Note\nchanged\n")?;
+    assert_eq!(
+        call(
+            &client,
+            "memory_get",
+            json!({
+                "project":"demo", "source_id":source_id, "path":"note.md", "content_hash":hash,
+            })
+        )
+        .await?
+        .is_error,
+        Some(true)
+    );
+    let connection = rusqlite::Connection::open(&database)?;
+    connection.execute("UPDATE project_sources SET can_read=0", [])?;
+    assert_eq!(call(&client, "memory_get", json!({
+        "project":"demo", "source_id":source_id, "path":"empty.md", "content_hash":empty_hash,
+    })).await?.is_error, Some(true));
+    client.cancel().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn full_document_by_path_without_search_and_selector_validation() -> Result<()> {
+    tokio::time::timeout(Duration::from_secs(30), path_document_scenario()).await?
 }

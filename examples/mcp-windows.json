@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "agent-memory": {
+      "command": "C:\\Windows\\System32\\wsl.exe",
+      "args": [
+        "--distribution", "Ubuntu-26.04",
+        "--user", "user",
+        "--exec", "/mnt/c/users/user/ai-mem/target/debug/agent-memory",
+        "--database", "/mnt/c/Users/user/agent-memory-knowlage/agent-memory.sqlite",
+        "mcp", "--project", "agent-memory", "--allow-write", "--write-policy", "confirm"
+      ]
+    }
+  }
+}

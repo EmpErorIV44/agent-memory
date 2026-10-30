@@ -8,6 +8,7 @@ mod index;
 mod memories;
 mod registry;
 mod revisions;
+mod search_metadata;
 pub use memories::MemoryRecord;
 pub use memory_core::{Revision, RevisionDocument};
 
@@ -74,20 +75,24 @@ impl Store {
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
         let version: i64 = connection.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version > 2 {
+        if version > 3 {
             bail!("unsupported database version {version}");
         }
-        if version < 2 {
+        if version < 3 {
             // A second process can finish the migration while this one waits for the lock.
             // Recheck under BEGIN IMMEDIATE, and keep all DDL inside the RAII transaction.
             let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let current: i64 = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-            anyhow::ensure!(current <= 2, "unsupported database version {current}");
+            anyhow::ensure!(current <= 3, "unsupported database version {current}");
             for (target, migration) in [
                 (1, include_str!("../../../migrations/001_initial.sql")),
                 (
                     2,
                     include_str!("../../../migrations/002_memory_projection.sql"),
+                ),
+                (
+                    3,
+                    include_str!("../../../migrations/003_search_metadata.sql"),
                 ),
             ] {
                 if current < target {
@@ -208,10 +213,7 @@ impl Store {
                     if let Some(published) =
                         error.downcast_ref::<memory_core::PublishedWriteError>()
                     {
-                        (
-                            published.content_hash.clone(),
-                            Some(published.to_string()),
-                        )
+                        (published.content_hash.clone(), Some(published.to_string()))
                     } else {
                         return Err(error);
                     }
@@ -250,26 +252,9 @@ impl Store {
     }
 
     pub fn search(&self, project: &str, query: &str) -> Result<Vec<SearchHit>> {
-        let project_id = self.project_id(project)?;
-        let mut statement = self.connection.prepare("SELECT d.relative_path, c.heading, c.body, c.start_line, c.end_line, c.id, d.id, d.source_id, d.content_hash, d.stable_id FROM document_chunks_fts JOIN document_chunks c ON c.id = document_chunks_fts.rowid JOIN documents d ON d.id = c.document_id WHERE document_chunks_fts MATCH ?1 AND EXISTS (SELECT 1 FROM project_sources ps WHERE ps.source_id = d.source_id AND ps.project_id = ?2 AND ps.can_read = 1) ORDER BY bm25(document_chunks_fts), d.relative_path, c.ordinal LIMIT 50")?;
-        let hits = statement.query_map(params![query, project_id], |row| {
-            Ok(SearchHit {
-                stable_id: row.get(9)?,
-                chunk_id: row.get(5)?,
-                document_id: row.get(6)?,
-                source_id: row.get(7)?,
-                content_hash: row.get(8)?,
-                path: row.get(0)?,
-                heading: row.get(1)?,
-                body: row.get(2)?,
-                start_line: row.get::<_, i64>(3)? as usize,
-                end_line: row.get::<_, i64>(4)? as usize,
-            })
-        })?;
-        Ok(hits.collect::<rusqlite::Result<_>>()?)
+        search_metadata::search(&self.connection, self.project_id(project)?, query)
     }
-    /// Resolve an indexed chunk only inside the project's readable sources.
-    /// The hash prevents stale chunk IDs from returning a different document revision.
+
     pub fn get(
         &self,
         project: &str,
@@ -301,18 +286,36 @@ impl Store {
         let Some(hit) = self.get(project, chunk_id, content_hash)? else {
             return Ok(None);
         };
+        self.get_document_by_path(project, hit.source_id, &hit.path, content_hash)
+    }
+
+    /// Full source Markdown authorized independently of search chunks, including empty documents.
+    pub fn get_document_by_path(
+        &self,
+        project: &str,
+        source_id: i64,
+        path: &str,
+        content_hash: &str,
+    ) -> Result<Option<FullDocument>> {
         let project_id = self.project_id(project)?;
-        let root: String = self.connection.query_row("SELECT s.root_path FROM sources s JOIN project_sources ps ON ps.source_id = s.id WHERE s.id = ?1 AND ps.project_id = ?2 AND ps.can_read = 1", params![hit.source_id, project_id], |row| row.get(0))?;
-        let content = memory_core::read_markdown(Path::new(&root), &hit.path)?;
+        let document: Option<(String, Option<String>)> = self.connection.query_row(
+            "SELECT s.root_path, d.stable_id FROM documents d JOIN sources s ON s.id = d.source_id WHERE d.source_id = ?1 AND d.relative_path = ?2 AND d.content_hash = ?3 AND EXISTS (SELECT 1 FROM project_sources ps WHERE ps.source_id = d.source_id AND ps.project_id = ?4 AND ps.can_read = 1)",
+            params![source_id, path, content_hash, project_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).optional()?;
+        let Some((root, stable_id)) = document else {
+            return Ok(None);
+        };
+        let content = memory_core::read_markdown(Path::new(&root), path)?;
         anyhow::ensure!(
             memory_core::content_hash(content.as_bytes()) == content_hash,
-            "document changed on disk; repeat memory_search"
+            "document changed on disk; refresh memory_list or memory_search"
         );
         Ok(Some(FullDocument {
-            stable_id: hit.stable_id,
-            source_id: hit.source_id,
-            path: hit.path,
-            content_hash: hit.content_hash,
+            stable_id,
+            source_id,
+            path: path.to_owned(),
+            content_hash: content_hash.to_owned(),
             content,
         }))
     }
