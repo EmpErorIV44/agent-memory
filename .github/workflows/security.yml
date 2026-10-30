@@ -1,0 +1,137 @@
+name: Security scans
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  semgrep:
+    name: Semgrep Community Edition
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      SEMGREP_SEND_METRICS: 'off'
+      SEMGREP_ENABLE_VERSION_CHECK: '0'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Semgrep CE
+        run: |
+          python3 -m venv "$RUNNER_TEMP/semgrep-venv"
+          "$RUNNER_TEMP/semgrep-venv/bin/python" -m pip install --disable-pip-version-check 'semgrep==1.183.0'
+      - name: Scan source with repository rules
+        run: |
+          "$RUNNER_TEMP/semgrep-venv/bin/semgrep" scan \
+            --oss-only --config .semgrep.yml --error \
+            --sarif --output semgrep.sarif \
+            --metrics off --disable-version-check crates
+      - name: Test rule coverage and safe examples
+        env:
+          SEMGREP: ${{ runner.temp }}/semgrep-venv/bin/semgrep
+        run: python3 -m unittest discover -s tests -p 'test_semgrep_rules.py'
+      - name: Save Semgrep report
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: semgrep-sarif
+          path: semgrep.sarif
+          if-no-files-found: warn
+          retention-days: 7
+
+  dependencies:
+    name: RustSec dependency audit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust and pinned cargo-audit
+        run: |
+          rustup toolchain install stable --profile minimal
+          cargo +stable install cargo-audit --version 0.22.2 --locked
+      - name: Audit Cargo.lock against RustSec advisories
+        run: cargo +stable audit --file Cargo.lock 2>&1 | tee cargo-audit.txt
+      - name: Save dependency audit report
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: cargo-audit-report
+          path: cargo-audit.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  sbom:
+    name: Serverless SBOM vulnerability scan
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
+      TRIVY_VERSION: '0.76.1'
+      TRIVY_SHA256: c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Trivy with checksum verification
+        run: |
+          archive="$RUNNER_TEMP/trivy.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+            --output "$archive"
+          printf '%s  %s\n' "$TRIVY_SHA256" "$archive" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/trivy-bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/trivy-bin" trivy
+          echo "$RUNNER_TEMP/trivy-bin" >> "$GITHUB_PATH"
+      - name: Create CycloneDX SBOM from source lockfiles
+        run: |
+          trivy fs --format cyclonedx --output sbom.cdx.json \
+            --skip-dirs target --skip-dirs .git --skip-dirs dist .
+      - name: Verify SBOM contains Rust dependencies
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          sbom = json.loads(Path('sbom.cdx.json').read_text(encoding='utf-8'))
+          if sbom.get('bomFormat') != 'CycloneDX':
+              raise SystemExit('Expected CycloneDX SBOM')
+          cargo = [component for component in sbom.get('components', [])
+                   if component.get('purl', '').startswith('pkg:cargo/')]
+          if not cargo:
+              raise SystemExit('SBOM contains no Cargo components; refusing an empty successful scan')
+          print('Cargo components in SBOM:', len(cargo))
+          PY
+      - name: Scan generated SBOM for high and critical vulnerabilities
+        run: |
+          trivy sbom --scanners vuln --format json \
+            --output sbom-vulnerabilities.json --severity HIGH,CRITICAL \
+            --exit-code 1 sbom.cdx.json
+      - name: Save SBOM and vulnerability report
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: security-sbom
+          path: |
+            sbom.cdx.json
+            sbom-vulnerabilities.json
+          if-no-files-found: warn
+          retention-days: 7

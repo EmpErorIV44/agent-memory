@@ -183,6 +183,10 @@ python3 scripts/check-mcp.py examples/mcp-windows.json --from-wsl
 
 ## Проверка
 
+Локальные Rust-правила Semgrep, RustSec и генерация/проверка CycloneDX SBOM
+через Trivy без постоянного сервера в GitHub Actions
+описаны в [инструкции сканирования безопасности](docs/security-scanning.md).
+
 Для проверки установки используйте `doctor --project PROJECT` и
 [порядок приёмки alpha](docs/alpha-checklist.md), включая проверку MCP,
 сохранённого Git sync статуса и восстановления из резервной копии.

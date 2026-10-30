@@ -1,0 +1,45 @@
+# Narrow, reviewable guardrails. These rules are not a complete vulnerability audit.
+rules:
+  - id: rust-shell-interpreter
+    languages: [rust]
+    severity: ERROR
+    message: Prefer direct executable arguments. Shell interpretation requires a security review.
+    patterns:
+      - pattern-either:
+          - pattern: Command::new($SHELL)
+          - pattern: std::process::Command::new($SHELL)
+          - pattern: tokio::process::Command::new($SHELL)
+      - metavariable-regex:
+          metavariable: $SHELL
+          regex: '^"(?:.*/)?(?:sh|bash|zsh|cmd(?:\.exe)?|powershell(?:\.exe)?|pwsh(?:\.exe)?)"$'
+    paths:
+      include: ['**/crates/**/src/**/*.rs']
+
+  - id: rust-formatted-sql
+    languages: [rust]
+    severity: ERROR
+    message: Use static SQL with bound parameters instead of formatting values into SQL.
+    pattern-either:
+      - pattern: $DB.prepare(&format!(...))
+      - pattern: $DB.execute(&format!(...), ...)
+      - pattern: $DB.execute_batch(&format!(...))
+    paths:
+      include: ['**/crates/**/src/**/*.rs']
+
+  - id: rust-unsafe-block-review
+    languages: [rust]
+    severity: ERROR
+    message: An unsafe block requires an explicit security review and a documented safety invariant.
+    pattern: unsafe { ... }
+    paths:
+      include: ['**/crates/**/src/**/*.rs']
+
+  - id: rust-disabled-tls-validation
+    languages: [rust]
+    severity: ERROR
+    message: Keep TLS certificate and hostname verification enabled.
+    pattern-either:
+      - pattern: $CLIENT.danger_accept_invalid_certs(true)
+      - pattern: $CLIENT.danger_accept_invalid_hostnames(true)
+    paths:
+      include: ['**/crates/**/src/**/*.rs']
