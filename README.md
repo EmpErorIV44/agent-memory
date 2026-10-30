@@ -26,6 +26,9 @@ cargo run -p agent-memory -- search --project storefront OAuth2
 строк (с 1), заголовок и текст фрагмента. Общий термин `OAuth2` находится в обоих
 проектах, но запрос возвращает только документы указанного проекта.
 FTS5 поддерживает слова, фразы и операторы запросов; русской морфологии нет.
+Для разных окончаний используйте префикс, например `правил*`. Поиск учитывает
+также путь, ID документа/Memory и summary в отдельном индексе метаданных;
+подробности и ограничения — в [формате памяти](docs/structured-memory.md).
 
 По умолчанию база находится в `./agent-memory.sqlite`. Другой путь:
 
@@ -85,6 +88,42 @@ cargo run -p agent-memory -- mcp --project banking
 к бинарнику и базе в окружении, где клиент запускает процесс; Linux-бинарник из
 WSL требует запуска в WSL. Конкретный формат настроек зависит от MCP-клиента.
 
+### Подключение с Windows-хоста
+
+Windows-клиент может запускать stdio MCP через `wsl.exe`.
+Готовый пример для текущих путей: [examples/mcp-windows.json](examples/mcp-windows.json).
+Скопируйте запись `agent-memory` в настройки `mcpServers` своего клиента.
+Дистрибутив (`wsl --list --quiet`), Linux-пользователь и абсолютные пути должны
+соответствовать вашей установке. HTTP-транспорт в утилите пока отсутствует.
+
+Для подготовки базы знаний выполните **в WSL** из корня репозитория:
+
+```sh
+cargo build --workspace --locked
+target/debug/agent-memory --database /mnt/c/Users/maksim.smirnov/agent-memory-knowlage/agent-memory.sqlite rebuild --config /mnt/c/Users/maksim.smirnov/agent-memory-knowlage/agent-memory.config.example.json
+```
+
+`rebuild` заменяет регистрации в выбранном индексе регистрациями из конфигурации.
+Отдельная база знаний из примера сохраняет демонстрационный проект `banking`
+в прежней базе приложения. Режим записи — `confirm`.
+
+Проверка из PowerShell в каталоге `C:\Users\maksim.smirnov\ai-mem` (Python 3.8+):
+
+```powershell
+python scripts/check-mcp.py examples/mcp-windows.json
+```
+
+Проверка того же Windows-моста из WSL:
+
+```sh
+python3 scripts/check-mcp.py examples/mcp-windows.json --from-wsl
+```
+
+Она выполняет MCP handshake, проверяет девять инструментов, включая историю
+и восстановление, и поиск по реальной базе знаний. После настройки перезапустите
+подключение MCP в клиенте. Клиент запускает собственный процесс через stdin/stdout;
+постоянно запущенный сервер или открытый порт не нужны.
+
 Инструменты:
 
 - `memory_search({"project":"banking","query":"OAuth2"})` возвращает
@@ -96,11 +135,16 @@ WSL требует запуска в WSL. Конкретный формат на
   поиск. ID фрагментов не являются постоянными ссылками.
   С `"include_document":true` дополнительно возвращает полный исходный Markdown
   в `document.content` для последующего обновления.
+- `memory_get({"project":"banking","source_id":1,"path":"note.md","content_hash":"…"})`
+  возвращает полный Markdown в `document.content` напрямую. Координаты и хеш
+  полного документа можно взять из `memory_list`; передавайте
+  `document.content_hash` как `expected_hash` при обновлении.
 - `memory_sources({"project":"banking"})` — доступные источники и права записи.
 - `memory_list({"project":"banking"})` — структурированные знания из YAML
   frontmatter: `Memory`, подтверждения `Evidence` и доступные связи `Relation`.
 - `memory_get_record({"project":"banking","memory_id":"auth-policy"})` —
   запись по устойчивому логическому ID, отличному от ID документа и фрагмента.
+  Это структурированная проекция, а не полный исходный Markdown.
 - `memory_write` — создание/обновление полного Markdown; доступен только при
   запуске с `--allow-write` и требует источника с `can_write=1`.
 - `memory_history`, `memory_revision_get`, `memory_restore` — долговечные версии,
@@ -162,8 +206,9 @@ MCP-тест запускает отдельный сервер, выполня�
 при переименовании внутри источника; без `id` переименование считается удалением
 и добавлением. Дубликаты ID отклоняются с откатом всей индексации.
 Метаданные времени изменения не обновляются, если хеш остался прежним.
-Символические ссылки внутри источника пропускаются. YAML frontmatter исключается
-из полнотекстового поиска; `id` и блок `memory` разбираются и валидируются отдельно.
+Символические ссылки внутри источника пропускаются. Полный YAML frontmatter
+исключается из текстового поиска; путь, ID и summary доступны через отдельный
+индекс метаданных. `id` и блок `memory` разбираются и валидируются отдельно.
 Структурированные знания и связи восстанавливаются из Markdown при `rebuild`.
 История ревизий хранится отдельно от SQLite в `.agent-memory-history/`;
 команды `history list/get/restore` доступны через CLI и MCP. В этой версии
