@@ -1,5 +1,7 @@
 mod config;
+mod doctor;
 mod git_runtime;
+mod git_status;
 mod git_sync;
 mod mcp;
 
@@ -20,6 +22,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Diagnose an existing database and project sources without modifying them.
+    Doctor {
+        #[arg(long)]
+        project: String,
+    },
+    /// Read the last persisted Git synchronization attempt (does not contact the remote).
+    GitSyncStatus {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+    },
     /// Serve MCP tools over stdin/stdout for explicitly allowed projects.
     Mcp {
         #[arg(long, required = true)]
@@ -180,6 +194,15 @@ enum SourceCommand {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Command::Doctor { project } = &cli.command {
+        let report = doctor::run(&cli.database, project)?;
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        anyhow::ensure!(
+            report["healthy"] == true,
+            "Doctor found errors; see the report above"
+        );
+        return Ok(());
+    }
     if let Command::Mcp {
         project,
         allow_write,
@@ -209,6 +232,21 @@ async fn main() -> Result<()> {
     };
     let mut store = Store::open(&cli.database)?;
     match cli.command {
+        Command::Doctor { .. } => unreachable!(),
+        Command::GitSyncStatus { project, source_id } => {
+            let source = store
+                .sources(&project)?
+                .into_iter()
+                .find(|source| source.source_id == source_id)
+                .context("Source not found or inaccessible")?;
+            let status = git_status::read(std::path::Path::new(&source.root_path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &serde_json::json!({"source_id":source_id,"sync":status})
+                )?
+            );
+        }
         Command::Mcp { .. } => unreachable!(),
         Command::GitSync { project, source_id } => {
             let source = store
