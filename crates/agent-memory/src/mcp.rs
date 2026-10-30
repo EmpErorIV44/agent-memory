@@ -111,6 +111,7 @@ struct MemoryServer {
     projects: Arc<HashSet<String>>,
     allow_write: bool,
     write_policy: WritePolicy,
+    git_sync: Option<Arc<crate::git_runtime::Runtime>>,
 }
 
 impl MemoryServer {
@@ -193,7 +194,7 @@ impl MemoryServer {
             destructive_hint = true,
             open_world_hint = false
         ),
-        description = "Restore a historical complete Markdown snapshot as a new guarded write, preserving later revisions. Requires writes enabled, source write permission and expected_hash of the CURRENT complete document. Follow the configured confirmation policy. The write result reports indexing state and optional history_error; either warning may mean the file was saved, so do not retry blindly."
+        description = "Restore a historical complete Markdown snapshot as a new guarded write, preserving later revisions. Requires writes enabled, source write permission and expected_hash of the CURRENT complete document. Follow the configured confirmation policy. The write result reports indexing state and optional history_error; either warning may mean the file was saved, so do not retry blindly. Optional git_sync status reports a separate commit/push attempt; a Git error does not undo the saved Markdown."
     )]
     async fn memory_restore(
         &self,
@@ -202,14 +203,21 @@ impl MemoryServer {
         if !self.allow_write {
             return tool_error("Markdown writes are disabled");
         }
+        let git_sync = self.git_sync.clone();
         self.execute(request.project, false, move |store, project| {
-            Ok(serde_json::to_value(store.restore_revision(
+            let mut value = serde_json::to_value(store.restore_revision(
                 project,
                 request.source_id,
                 &request.path,
                 &request.revision_id,
                 &request.expected_hash,
-            )?)?)
+            )?)?;
+            if let Some(result) =
+                git_sync.and_then(|sync| sync.after_saved_write(project, request.source_id))
+            {
+                value["git_sync"] = result;
+            }
+            Ok(value)
         })
         .await
     }
@@ -324,20 +332,27 @@ impl MemoryServer {
             idempotent_hint = false,
             open_world_hint = false
         ),
-        description = "Create or update a complete Markdown note in an explicitly writable source, retaining durable revisions. Follow the server write policy. Omit expected_hash to create without overwriting; updating requires a fresh hash and full current document from memory_get(include_document=true). On conflict read again and reconcile; never retry blindly. indexed=false means the file WAS SAVED but index refresh failed; optional history_error means journal finalization needs recovery. Do not repeat an already saved write."
+        description = "Create or update a complete Markdown note in an explicitly writable source, retaining durable revisions. Follow the server write policy. Omit expected_hash to create without overwriting; updating requires a fresh hash and full current document from memory_get(include_document=true). On conflict read again and reconcile; never retry blindly. indexed=false means the file WAS SAVED but index refresh failed; optional history_error means journal finalization needs recovery. Do not repeat an already saved write. Optional git_sync status reports a separate commit/push attempt; a Git error does not undo the saved Markdown."
     )]
     async fn memory_write(&self, Parameters(request): Parameters<WriteRequest>) -> CallToolResult {
         if !self.allow_write {
             return tool_error("Markdown writes are disabled");
         }
+        let git_sync = self.git_sync.clone();
         self.execute(request.project, false, move |store, project| {
-            Ok(serde_json::to_value(store.write(
+            let mut value = serde_json::to_value(store.write(
                 project,
                 request.source_id,
                 &request.path,
                 &request.content,
                 request.expected_hash.as_deref(),
-            )?)?)
+            )?)?;
+            if let Some(result) =
+                git_sync.and_then(|sync| sync.after_saved_write(project, request.source_id))
+            {
+                value["git_sync"] = result;
+            }
+            Ok(value)
         })
         .await
     }
@@ -373,11 +388,14 @@ pub async fn run(
     projects: Vec<String>,
     allow_write: bool,
     write_policy: WritePolicy,
+    git_options: crate::git_runtime::Options,
 ) -> Result<()> {
     if projects.is_empty() {
         bail!("MCP requires at least one --project");
     }
     let projects: HashSet<_> = projects.into_iter().collect();
+    let git_sync =
+        crate::git_runtime::Runtime::new(database.clone(), &projects, allow_write, git_options)?;
     let startup_database = database.clone();
     let startup_projects = projects.clone();
     tokio::task::spawn_blocking(move || -> Result<()> {
@@ -388,11 +406,13 @@ pub async fn run(
         Ok(())
     })
     .await??;
+    let _git_task = git_sync.as_ref().map(|runtime| runtime.start());
     let service = MemoryServer {
         database,
         projects: Arc::new(projects),
         allow_write,
         write_policy,
+        git_sync,
     }
     .serve(rmcp::transport::stdio())
     .await?;

@@ -1,4 +1,6 @@
 mod config;
+mod git_runtime;
+mod git_sync;
 mod mcp;
 
 use std::path::PathBuf;
@@ -27,6 +29,22 @@ enum Command {
         allow_write: bool,
         #[arg(long, value_enum, default_value = "confirm")]
         write_policy: mcp::WritePolicy,
+        /// Opt in writable source IDs for automatic Git commit and push.
+        #[arg(long)]
+        git_sync_source: Vec<i64>,
+        /// Also sync an opted-in source after each saved MCP write or restore.
+        #[arg(long)]
+        git_sync_after_write: bool,
+        /// Interval in seconds; otherwise AGENT_MEMORY_GIT_SYNC_INTERVAL_SECS or 900.
+        #[arg(long)]
+        git_sync_interval_secs: Option<u64>,
+    },
+    /// Commit and push visible Markdown in an explicitly writable Git source.
+    GitSync {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
     },
     Init,
     /// Export owner-controlled project/source registrations outside the search index.
@@ -166,9 +184,23 @@ async fn main() -> Result<()> {
         project,
         allow_write,
         write_policy,
+        git_sync_source,
+        git_sync_after_write,
+        git_sync_interval_secs,
     } = cli.command
     {
-        return mcp::run(cli.database, project, allow_write, write_policy).await;
+        return mcp::run(
+            cli.database,
+            project,
+            allow_write,
+            write_policy,
+            git_runtime::Options {
+                source_ids: git_sync_source,
+                after_write: git_sync_after_write,
+                interval_secs: git_sync_interval_secs,
+            },
+        )
+        .await;
     }
     // Parse and validate the complete owner config before opening/creating the DB.
     let rebuild_config = match &cli.command {
@@ -178,6 +210,18 @@ async fn main() -> Result<()> {
     let mut store = Store::open(&cli.database)?;
     match cli.command {
         Command::Mcp { .. } => unreachable!(),
+        Command::GitSync { project, source_id } => {
+            let source = store
+                .sources(&project)?
+                .into_iter()
+                .find(|source| source.source_id == source_id && source.can_write)
+                .context("Git sync requires a writable source in the selected project")?;
+            git_sync::sync_source(std::path::Path::new(&source.root_path))?;
+            println!(
+                "{}",
+                serde_json::json!({"status":"ok", "source_id":source_id})
+            );
+        }
         Command::Config {
             command: ConfigCommand::Export { output },
         } => config::export(&store.export_config()?, output.as_deref())?,
