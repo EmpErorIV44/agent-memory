@@ -149,6 +149,7 @@ async fn after_write_pushes_and_reports_push_failure_without_losing_markdown() -
         "3600",
     ]);
     let client = ().serve(TokioChildProcess::new(command)?).await?;
+    let mut last_success = serde_json::Value::Null;
     for (path, status) in [("first.md", "ok"), ("second.md", "error")] {
         if status == "error" {
             git(
@@ -176,6 +177,48 @@ async fn after_write_pushes_and_reports_push_failure_without_losing_markdown() -
         assert_eq!(value["indexed"], true);
         assert_eq!(value["git_sync"]["status"], status);
         assert_eq!(std::fs::read_to_string(notes.join(path))?, "# Saved\n");
+        let result = client
+            .call_tool(
+                CallToolRequestParams::new("memory_sync_status").with_arguments(
+                    json!({"project":"demo","source_id":id})
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                ),
+            )
+            .await?;
+        assert_ne!(result.is_error, Some(true));
+        let recorded = result.structured_content.unwrap()["sync"].clone();
+        assert_eq!(recorded["status"], status);
+        assert!(recorded["last_attempt_at"].as_u64().is_some());
+        if status == "ok" {
+            assert!(recorded["last_success_at"].as_u64().is_some());
+            last_success = recorded["last_success_at"].clone();
+        } else {
+            assert_eq!(recorded["last_success_at"], last_success);
+            assert!(recorded["last_error"].is_string());
+            assert!(!recorded["last_error"]
+                .as_str()
+                .unwrap()
+                .contains("missing.git"));
+        }
+        let output = cli(
+            &db,
+            &[
+                "git-sync-status",
+                "--project",
+                "demo",
+                "--source-id",
+                &id.to_string(),
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let persisted: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+        assert_eq!(persisted["sync"], recorded);
     }
     assert_eq!(
         git(&remote, &["show", "refs/heads/main:first.md"]),

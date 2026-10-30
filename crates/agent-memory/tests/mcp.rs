@@ -67,7 +67,8 @@ async fn scenario() -> Result<()> {
             "memory_list",
             "memory_revision_get",
             "memory_search",
-            "memory_sources"
+            "memory_sources",
+            "memory_sync_status"
         ]
     );
 

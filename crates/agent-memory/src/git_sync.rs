@@ -92,6 +92,25 @@ fn checked(root: &Path, args: &[&str]) -> Result<String> {
     Ok(output.stdout)
 }
 
+/// Resolve an exact source repository without creating runtime metadata.
+pub(crate) fn status_directory(root: &Path) -> Result<Option<std::path::PathBuf>> {
+    ensure!(
+        !fs::symlink_metadata(root)?.file_type().is_symlink(),
+        "Git sync source root must not be a symlink"
+    );
+    let root = root.canonicalize().context("resolve Git status source")?;
+    let top = git(&root, &["rev-parse", "--show-toplevel"])?;
+    if !top.status.success() {
+        return Ok(None);
+    }
+    ensure!(
+        Path::new(top.stdout.trim()).canonicalize()? == root,
+        "Git sync source must be the repository root, not a subdirectory"
+    );
+    let directory = checked(&root, &["rev-parse", "--absolute-git-dir"])?;
+    Ok(Some(Path::new(directory.trim()).to_path_buf()))
+}
+
 fn visible_markdown(root: &Path, relative: &str) -> bool {
     let path = Path::new(relative);
     if path.extension().and_then(|s| s.to_str()) != Some("md") {
@@ -123,6 +142,10 @@ fn visible_markdown(root: &Path, relative: &str) -> bool {
 /// push to its existing upstream. Existing staged changes and conflicted states
 /// are refused. A rejected push leaves the local commit for a later retry.
 pub fn sync_source(root: &Path) -> Result<()> {
+    ensure!(
+        !fs::symlink_metadata(root)?.file_type().is_symlink(),
+        "Git sync source root must not be a symlink"
+    );
     let root = root.canonicalize().context("resolve Git source")?;
     let top = checked(&root, &["rev-parse", "--show-toplevel"])?;
     ensure!(
@@ -146,9 +169,18 @@ pub fn sync_source(root: &Path) -> Result<()> {
         .open(&lock_path)?;
     lock.try_lock()
         .context("another Git sync holds the repository lock")?;
-    checked(&root, &["symbolic-ref", "--quiet", "HEAD"])
+    let status = crate::git_status::start(git_dir)?;
+    let result = sync_locked(&root);
+    let saved_status = crate::git_status::finish(git_dir, status, &result);
+    result?;
+    saved_status.context("Git synchronization completed but status could not be saved")?;
+    Ok(())
+}
+
+fn sync_locked(root: &Path) -> Result<()> {
+    checked(root, &["symbolic-ref", "--quiet", "HEAD"])
         .context("Git sync requires an attached branch")?;
-    checked(&root, &["rev-parse", "--verify", "@{upstream}"])
+    checked(root, &["rev-parse", "--verify", "@{upstream}"])
         .context("Git sync requires an existing upstream branch")?;
     for state in [
         "MERGE_HEAD",
@@ -158,22 +190,22 @@ pub fn sync_source(root: &Path) -> Result<()> {
         "rebase-apply",
         "sequencer",
     ] {
-        let state_path = checked(&root, &["rev-parse", "--git-path", state])?;
+        let state_path = checked(root, &["rev-parse", "--git-path", state])?;
         ensure!(
             !root.join(state_path.trim()).exists(),
             "Git sync refuses an in-progress merge, rebase or sequencer operation"
         );
     }
     ensure!(
-        checked(&root, &["ls-files", "--unmerged", "-z"])?.is_empty(),
+        checked(root, &["ls-files", "--unmerged", "-z"])?.is_empty(),
         "Git sync refuses unresolved conflicts"
     );
     ensure!(
-        checked(&root, &["diff", "--cached", "--name-only", "-z"])?.is_empty(),
+        checked(root, &["diff", "--cached", "--name-only", "-z"])?.is_empty(),
         "Git sync refuses existing staged changes; commit or unstage them first"
     );
     let paths = checked(
-        &root,
+        root,
         &[
             "ls-files",
             "--modified",
@@ -185,18 +217,15 @@ pub fn sync_source(root: &Path) -> Result<()> {
     )?;
     let mut selected = BTreeSet::new();
     for path in paths.split('\0').filter(|p| !p.is_empty()) {
-        if !visible_markdown(&root, path) {
+        if !visible_markdown(root, path) {
             continue;
         }
         // Deleted symlinks have no filesystem entry; consult the index as well.
-        let indexed = checked(&root, &["ls-files", "--stage", "--", path])?;
+        let indexed = checked(root, &["ls-files", "--stage", "--", path])?;
         if indexed.starts_with("120000 ") || indexed.starts_with("160000 ") {
             continue;
         }
-        let ignored = git(
-            &root,
-            &["check-ignore", "--no-index", "--quiet", "--", path],
-        )?;
+        let ignored = git(root, &["check-ignore", "--no-index", "--quiet", "--", path])?;
         match ignored.status.code() {
             Some(0) => continue,
             Some(1) => {
@@ -206,9 +235,9 @@ pub fn sync_source(root: &Path) -> Result<()> {
         }
     }
     for path in &selected {
-        checked(&root, &["add", "--all", "--", path])?;
+        checked(root, &["add", "--all", "--", path])?;
     }
-    let staged = checked(&root, &["diff", "--cached", "--name-only", "-z"])?;
+    let staged = checked(root, &["diff", "--cached", "--name-only", "-z"])?;
     ensure!(
         staged
             .split('\0')
@@ -218,23 +247,23 @@ pub fn sync_source(root: &Path) -> Result<()> {
     );
     if !staged.is_empty() {
         checked(
-            &root,
+            root,
             &["commit", "--no-verify", "-m", "Sync agent memory Markdown"],
         )?;
     }
     // Use the explicitly configured upstream, independent of push.default or
     // remote push refspecs that might otherwise push additional branches.
-    let branch = checked(&root, &["symbolic-ref", "--quiet", "--short", "HEAD"])?;
+    let branch = checked(root, &["symbolic-ref", "--quiet", "--short", "HEAD"])?;
     let remote_key = format!("branch.{}.remote", branch.trim());
     let merge_key = format!("branch.{}.merge", branch.trim());
-    let remote = checked(&root, &["config", "--get", &remote_key])?;
-    let merge = checked(&root, &["config", "--get", &merge_key])?;
+    let remote = checked(root, &["config", "--get", &remote_key])?;
+    let merge = checked(root, &["config", "--get", &merge_key])?;
     ensure!(
         !remote.trim().starts_with('-') && merge.trim().starts_with("refs/heads/"),
         "invalid Git upstream configuration"
     );
     let refspec = format!("HEAD:{}", merge.trim());
-    checked(&root, &["push", "--no-verify", remote.trim(), &refspec])
+    checked(root, &["push", "--no-verify", remote.trim(), &refspec])
         .context("Git push failed; local commits are retained (no pull or force push attempted)")?;
     Ok(())
 }
@@ -275,6 +304,9 @@ mod tests {
         fs::write(local.join("ignored.md"), "ignored").unwrap();
         fs::remove_file(local.join("seed.md")).unwrap();
         sync_source(&local).unwrap();
+        let status = crate::git_status::read(&local).unwrap().unwrap();
+        assert_eq!(status.status, "ok");
+        assert!(status.last_success_at.is_some());
         let files = checked(&local, &["ls-tree", "-r", "--name-only", "HEAD"]).unwrap();
         assert_eq!(files.trim(), "new.md");
         let head = checked(&local, &["rev-parse", "HEAD"]).unwrap();
@@ -325,9 +357,27 @@ mod tests {
         run(&other, &["push"]);
         fs::write(local.join("local.md"), "local").unwrap();
         assert!(sync_source(&local).is_err());
+        let status = crate::git_status::read(&local).unwrap().unwrap();
+        assert_eq!(status.status, "error");
+        assert_eq!(
+            status.last_error.as_deref(),
+            Some("Git push failed; local commits are retained")
+        );
         assert!(checked(&local, &["show", "HEAD:local.md"]).is_ok());
         assert!(checked(&local, &["diff", "--cached", "--name-only"])
             .unwrap()
             .is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replaced_source_root_cannot_redirect_status_or_sync() {
+        let (temp, local, _) = fixture();
+        let moved = temp.path().join("moved");
+        fs::rename(&local, &moved).unwrap();
+        std::os::unix::fs::symlink(&moved, &local).unwrap();
+        assert!(crate::git_status::read(&local).is_err());
+        assert!(sync_source(&local).is_err());
+        assert!(!moved.join(".git/agent-memory-sync-status.json").exists());
     }
 }
