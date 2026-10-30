@@ -1,4 +1,6 @@
 /target/
+/dist/
+__pycache__/
 /local-feedback/
 *.sqlite
 *.sqlite-wal
