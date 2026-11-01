@@ -3,16 +3,23 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use std::path::Path;
 use std::time::Duration;
 
+mod changes;
 pub mod config;
 mod index;
 mod links;
+pub use changes::{Change, Changes};
 pub use links::{DocumentLinks, LinkDocument, LinkRecord};
 mod memories;
 mod registry;
+mod rename;
 mod revisions;
 mod search_metadata;
 pub use memories::MemoryRecord;
 pub use memory_core::{Revision, RevisionDocument};
+pub use rename::{RenameEdit, RenamePlan, RenameResult};
+pub use search_metadata::SearchOptions;
+
+pub const SCHEMA_VERSION: i64 = 6;
 
 pub struct Store {
     connection: Connection,
@@ -77,15 +84,18 @@ impl Store {
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
         let version: i64 = connection.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version > 4 {
+        if version > SCHEMA_VERSION {
             bail!("unsupported database version {version}");
         }
-        if version < 4 {
+        if version < SCHEMA_VERSION {
             // A second process can finish the migration while this one waits for the lock.
             // Recheck under BEGIN IMMEDIATE, and keep all DDL inside the RAII transaction.
             let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let current: i64 = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-            anyhow::ensure!(current <= 4, "unsupported database version {current}");
+            anyhow::ensure!(
+                current <= SCHEMA_VERSION,
+                "unsupported database version {current}"
+            );
             for (target, migration) in [
                 (1, include_str!("../../../migrations/001_initial.sql")),
                 (
@@ -100,6 +110,14 @@ impl Store {
                     4,
                     include_str!("../../../migrations/004_document_links.sql"),
                 ),
+                (
+                    5,
+                    include_str!("../../../migrations/005_project_changes.sql"),
+                ),
+                (
+                    6,
+                    include_str!("../../../migrations/006_russian_search.sql"),
+                ),
             ] {
                 if current < target {
                     // SQL files remain executable standalone; omit their outer wrapper here.
@@ -110,6 +128,7 @@ impl Store {
                     tx.execute_batch(body)?;
                 }
             }
+            search_metadata::index_morphology(&tx)?;
             tx.commit()?;
         }
         Ok(Self { connection })
@@ -259,6 +278,20 @@ impl Store {
 
     pub fn search(&self, project: &str, query: &str) -> Result<Vec<SearchHit>> {
         search_metadata::search(&self.connection, self.project_id(project)?, query)
+    }
+
+    pub fn search_filtered(
+        &self,
+        project: &str,
+        query: &str,
+        options: &SearchOptions,
+    ) -> Result<Vec<SearchHit>> {
+        search_metadata::search_filtered(
+            &self.connection,
+            self.project_id(project)?,
+            query,
+            options,
+        )
     }
 
     pub fn get(

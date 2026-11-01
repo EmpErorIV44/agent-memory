@@ -251,11 +251,17 @@ pub fn run(database: &Path, project: &str) -> Result<Value> {
             return Ok(report(checks));
         }
     };
-    if version != 4 {
-        check(&mut checks,"schema","error",format!("Unsupported schema version {version}; expected 4. Doctor does not migrate databases"),None);
+    if version != memory_sqlite::SCHEMA_VERSION {
+        check(&mut checks,"schema","error",format!("Unsupported schema version {version}; expected {}. Doctor does not migrate databases", memory_sqlite::SCHEMA_VERSION),None);
         return Ok(report(checks));
     }
-    check(&mut checks, "schema", "ok", "SQLite schema version 4", None);
+    check(
+        &mut checks,
+        "schema",
+        "ok",
+        format!("SQLite schema version {}", memory_sqlite::SCHEMA_VERSION),
+        None,
+    );
     let quick = connection
         .prepare("PRAGMA quick_check")
         .and_then(|mut statement| {

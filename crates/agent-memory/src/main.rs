@@ -1,5 +1,6 @@
 mod config;
 mod doctor;
+mod git_evidence;
 mod git_runtime;
 mod git_status;
 mod git_sync;
@@ -22,6 +23,54 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Compare Git evidence against raw local working-tree files; never fetch or run tests.
+    VerifyEvidence {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        memory_id: String,
+        /// Owner-authorized PROJECT:ALIAS=PATH mapping (repeatable).
+        #[arg(long)]
+        evidence_repository: Vec<String>,
+    },
+    /// Diagnose broken or stale note links in readable project sources.
+    LinkDiagnostics {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: Option<i64>,
+        #[arg(long, requires = "source_id")]
+        path: Option<String>,
+    },
+    /// Preview a rename and link repairs; pass the reviewed plan hash to apply.
+    Rename {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+        #[arg(long)]
+        from: String,
+        #[arg(long)]
+        to: String,
+        #[arg(long)]
+        expected_plan_hash: Option<String>,
+    },
+    /// Compare local memory to upstream; --fetch contacts the remote.
+    GitFreshness {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+        #[arg(long)]
+        fetch: bool,
+    },
+    /// Fetch and fast-forward clean writable memory, then index the project.
+    GitPull {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+    },
     /// Diagnose an existing database and project sources without modifying them.
     Doctor {
         #[arg(long)]
@@ -52,6 +101,9 @@ enum Command {
         /// Interval in seconds; otherwise AGENT_MEMORY_GIT_SYNC_INTERVAL_SECS or 900.
         #[arg(long)]
         git_sync_interval_secs: Option<u64>,
+        /// Authorize local Git evidence access: PROJECT:ALIAS=PATH (repeatable).
+        #[arg(long)]
+        evidence_repository: Vec<String>,
     },
     /// Commit and push visible Markdown in an explicitly writable Git source.
     GitSync {
@@ -109,6 +161,10 @@ enum Command {
     Search {
         #[arg(long)]
         project: String,
+        #[arg(long, value_parser = ["fact", "decision", "implementation", "constraint"])]
+        kind: Option<String>,
+        #[arg(long, value_parser = ["planned", "implemented", "accepted", "superseded", "deprecated"])]
+        status: Option<String>,
         query: String,
     },
 }
@@ -129,6 +185,12 @@ enum ConfigCommand {
 
 #[derive(Subcommand)]
 enum MemoryCommand {
+    Changes {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        since: Option<String>,
+    },
     List {
         #[arg(long)]
         project: String,
@@ -210,6 +272,7 @@ async fn main() -> Result<()> {
         git_sync_source,
         git_sync_after_write,
         git_sync_interval_secs,
+        evidence_repository,
     } = cli.command
     {
         return mcp::run(
@@ -222,6 +285,7 @@ async fn main() -> Result<()> {
                 after_write: git_sync_after_write,
                 interval_secs: git_sync_interval_secs,
             },
+            evidence_repository,
         )
         .await;
     }
@@ -232,6 +296,92 @@ async fn main() -> Result<()> {
     };
     let mut store = Store::open(&cli.database)?;
     match cli.command {
+        Command::VerifyEvidence {
+            project,
+            memory_id,
+            evidence_repository,
+        } => {
+            let repositories = git_evidence::Repositories::new(
+                evidence_repository,
+                &std::collections::HashSet::from([project.clone()]),
+            )?;
+            store.index(&project)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&repositories.verify(&store, &project, &memory_id)?)?
+            );
+        }
+        Command::LinkDiagnostics {
+            project,
+            source_id,
+            path,
+        } => {
+            store.index(&project)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&store.link_diagnostics(
+                    &project,
+                    source_id,
+                    path.as_deref()
+                )?)?
+            );
+        }
+        Command::Rename {
+            project,
+            source_id,
+            from,
+            to,
+            expected_plan_hash,
+        } => {
+            if let Some(hash) = expected_plan_hash {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(
+                        &store.rename_apply(&project, source_id, &from, &to, &hash)?
+                    )?
+                );
+            } else {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(
+                        &store.rename_preview(&project, source_id, &from, &to)?
+                    )?
+                );
+            }
+        }
+        Command::GitFreshness {
+            project,
+            source_id,
+            fetch,
+        } => {
+            let source = store
+                .sources(&project)?
+                .into_iter()
+                .find(|s| s.source_id == source_id)
+                .context("Source not found or inaccessible")?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&git_sync::freshness(
+                    std::path::Path::new(&source.root_path),
+                    fetch
+                )?)?
+            );
+        }
+        Command::GitPull { project, source_id } => {
+            let source = store
+                .sources(&project)?
+                .into_iter()
+                .find(|s| s.source_id == source_id && s.can_write)
+                .context("Source not found or write access denied")?;
+            let freshness = git_sync::pull_source(std::path::Path::new(&source.root_path))?;
+            let refresh = store.index(&project);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &serde_json::json!({"pulled":true,"freshness":freshness,"indexed":refresh.is_ok(),"index_error":refresh.err().map(|e|format!("{e:#}"))})
+                )?
+            );
+        }
         Command::Doctor { .. } => unreachable!(),
         Command::GitSyncStatus { project, source_id } => {
             let source = store
@@ -272,6 +422,14 @@ async fn main() -> Result<()> {
                 stats.updated,
                 stats.unchanged,
                 stats.deleted
+            );
+        }
+        Command::Memory {
+            command: MemoryCommand::Changes { project, since },
+        } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&store.changes(&project, since.as_deref())?)?
             );
         }
         Command::Memory {
@@ -382,8 +540,15 @@ async fn main() -> Result<()> {
                 stats.added, stats.updated, stats.unchanged, stats.deleted
             );
         }
-        Command::Search { project, query } => {
-            for hit in store.search(&project, &query)? {
+        Command::Search {
+            project,
+            query,
+            kind,
+            status,
+        } => {
+            let options =
+                memory_sqlite::SearchOptions::from_filters(kind.as_deref(), status.as_deref())?;
+            for hit in store.search_filtered(&project, &query, &options)? {
                 println!(
                     "{}:{}-{}\n{}\n{}\n",
                     hit.path, hit.start_line, hit.end_line, hit.heading, hit.body

@@ -50,7 +50,7 @@ fn normalize(base: &str, target: &str) -> Option<String> {
     }
 }
 
-fn decoded(target: &str) -> Option<String> {
+pub(crate) fn decoded(target: &str) -> Option<String> {
     let mut bytes = Vec::new();
     let raw = target.as_bytes();
     let mut pos = 0;
@@ -67,7 +67,7 @@ fn decoded(target: &str) -> Option<String> {
     String::from_utf8(bytes).ok()
 }
 
-fn resolve(
+pub(crate) fn resolve(
     origin: &LinkDocument,
     raw: &str,
     kind: &str,
@@ -198,6 +198,61 @@ fn read_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<LinkDocument> {
 }
 
 impl Store {
+    /// Project-wide missing/ambiguous links plus identity bindings whose textual path is stale.
+    /// Heading anchors are preserved but are not validated.
+    pub fn link_diagnostics(
+        &mut self,
+        project: &str,
+        source_id: Option<i64>,
+        path: Option<&str>,
+    ) -> Result<Vec<LinkRecord>> {
+        anyhow::ensure!(
+            path.is_none() || source_id.is_some(),
+            "path filter requires source_id"
+        );
+        self.index(project)?;
+        let mut result = Vec::new();
+        for source in self.sources(project)? {
+            if source_id.is_some_and(|id| id != source.source_id) {
+                continue;
+            }
+            let documents = self.link_documents(source.source_id)?;
+            for origin in &documents {
+                if path.is_some_and(|path| path != origin.path) {
+                    continue;
+                }
+                let Some(links) = self.document_links(project, source.source_id, &origin.path)?
+                else {
+                    continue;
+                };
+                for mut link in links.outgoing {
+                    let (resolved, status) = resolve(origin, &link.target, &link.kind, &documents);
+                    if link.status == "resolved"
+                        && resolved
+                            != link
+                                .target_document
+                                .as_ref()
+                                .map(|document| document.document_id)
+                    {
+                        link.status = "stale_path".into();
+                    } else if status != "resolved" {
+                        link.status = status.into();
+                    }
+                    if link.status != "resolved" {
+                        result.push(link);
+                    }
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn link_documents(&self, source_id: i64) -> Result<Vec<LinkDocument>> {
+        let mut query = self.connection.prepare("SELECT id,source_id,relative_path,stable_id,content_hash FROM documents WHERE source_id=?1 ORDER BY relative_path")?;
+        let rows = query.query_map([source_id], read_document)?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     pub fn document_links(
         &self,
         project: &str,

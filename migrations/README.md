@@ -160,3 +160,18 @@ FTS-вставка/обновление/удаление, каскадная о�
 `foreign_key_check`, `integrity_check` и FTS5 `integrity-check` с проверкой
 external content. Это историческая проверка начальной схемы. Текущие CLI, файловый адаптер, MCP,
 миграции, восстановление и структурированные проекции проверяются тестами Cargo.
+# Project change journal (v5)
+
+`005_project_changes.sql` adds project clocks, observed document snapshots and
+an append-only change feed. Project revisions advance in the indexing transaction;
+event sequences use an explicit AUTOINCREMENT primary key to survive VACUUM.
+Opaque cursors include a per-project epoch, so rebuilding a deleted SQLite index
+requires a new baseline. Markdown remains authoritative; the feed captures only
+states observed by successful scans. See [changes](../docs/changes.md).
+# Russian search (v6)
+
+`006_russian_search.sql` adds project-scoped exact and Russian Snowball FTS
+projections. `Store::open` backfills them from the existing index inside the
+migration transaction; indexing reconciles them by content fingerprint. The
+exported `SCHEMA_VERSION` is shared by migration and doctor validation.
+See [search](../docs/search.md) for query semantics and typed filters.

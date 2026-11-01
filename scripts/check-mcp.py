@@ -26,6 +26,14 @@ messages = [
     {"id": 3, "method": "tools/call", "params": {
         "name": "memory_search", "arguments": {
             "project": "agent-memory", "query": "Markdown"}}},
+    {"id": 4, "method": "tools/call", "params": {
+        "name": "memory_changes", "arguments": {"project": "agent-memory"}}},
+    {"id": 5, "method": "tools/call", "params": {
+        "name": "memory_search", "arguments": {
+            "project": "agent-memory", "query": "проверки",
+            "kind": "implementation", "status": "implemented"}}},
+    {"id": 6, "method": "tools/call", "params": {
+        "name": "memory_link_diagnostics", "arguments": {"project": "agent-memory"}}},
 ]
 process = subprocess.Popen(
     [command, *server["args"]], stdin=subprocess.PIPE,
@@ -44,16 +52,21 @@ if process.returncode:
     raise SystemExit(errors or f"Server exited with {process.returncode}")
 responses = {m["id"]: m for line in output.splitlines()
              if "id" in (m := json.loads(line))}
-for request_id in (1, 2, 3):
+for request_id in (1, 2, 3, 4, 5, 6):
     if request_id not in responses or "error" in responses[request_id]:
         raise SystemExit(f"Request {request_id} failed: {responses.get(request_id)}")
 tools = {tool["name"] for tool in responses[2]["result"]["tools"]}
 required = {"memory_search", "memory_get", "memory_sources", "memory_list", "memory_links",
             "memory_get_record", "memory_history", "memory_revision_get",
-            "memory_write", "memory_restore", "memory_sync_status"}
+            "memory_write", "memory_restore", "memory_sync_status",
+            "memory_changes", "memory_freshness", "memory_pull",
+            "memory_link_diagnostics", "memory_rename", "memory_verify_evidence"}
 if not required <= tools:
     raise SystemExit(f"Missing tools: {required - tools}")
 search = responses[3]["result"]
 if search.get("isError") or not search.get("structuredContent", {}).get("hits"):
     raise SystemExit(f"Search failed or returned no knowledge: {search}")
-print(f"OK: initialize, {len(tools)} tools, knowledge search")
+for request_id in (4, 5, 6):
+    if responses[request_id]["result"].get("isError"):
+        raise SystemExit(f"Tool smoke failed: {responses[request_id]}")
+print(f"OK: initialize, {len(tools)} tools, search, changes, Russian filters, link diagnostics")

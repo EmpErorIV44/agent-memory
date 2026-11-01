@@ -100,3 +100,40 @@ fn structured_cli_refreshes_and_rebuilds_without_cross_project_disclosure() {
     assert_eq!(updated["memory"], restored["memory"]);
     assert_eq!(updated["stable_id"], restored["stable_id"]);
 }
+
+#[test]
+fn changes_cli_tracks_external_notes_between_invocations() {
+    let temp = tempfile::tempdir().unwrap();
+    let notes = temp.path().join("notes");
+    std::fs::create_dir(&notes).unwrap();
+    let db = temp.path().join("index.sqlite");
+    run(&db, &["project", "create", "demo"]);
+    run(
+        &db,
+        &[
+            "source",
+            "add",
+            "--project",
+            "demo",
+            notes.to_str().unwrap(),
+        ],
+    );
+    let baseline: Value =
+        serde_json::from_str(&run(&db, &["memory", "changes", "--project", "demo"])).unwrap();
+    std::fs::write(notes.join("new.md"), "# External knowledge\n").unwrap();
+    let changes: Value = serde_json::from_str(&run(
+        &db,
+        &[
+            "memory",
+            "changes",
+            "--project",
+            "demo",
+            "--since",
+            baseline["cursor"].as_str().unwrap(),
+        ],
+    ))
+    .unwrap();
+    assert_eq!(changes["changes"][0]["path"], "new.md");
+    assert_eq!(changes["changes"][0]["kind"], "added");
+    assert_eq!(changes["has_more"], false);
+}

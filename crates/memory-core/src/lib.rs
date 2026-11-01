@@ -1,12 +1,14 @@
 //! Markdown source models, independent of storage and transport.
+mod edits;
 mod history;
+pub use edits::move_markdown;
 pub mod links;
 mod metadata;
 mod write;
 use anyhow::{Context, Result};
 use cap_std::fs::Dir;
 pub use history::{get_revision, list_revisions, PublishedWriteError, Revision, RevisionDocument};
-pub use links::{extract_links, DocumentLink};
+pub use links::{extract_links, rewrite_links, DocumentLink};
 pub use metadata::{
     parse_metadata, validate_document_id, DocumentMetadata, Evidence, EvidenceKind, Memory,
     MemoryKind, MemoryStatus, Relation, RelationKind,

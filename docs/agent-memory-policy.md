@@ -8,8 +8,9 @@ content_hash), using the source coordinates and full-document hash from the list
 memory_get_record returns structured knowledge, not the full Markdown document.
 Use memory_search for additional context or unstructured notes; chunk-based
 memory_get(include_document=true) remains available. Search metadata includes
-path, IDs and memory summary. Match the source language; Russian search has no
-stemming, so use a prefix such as правил* when appropriate.
+path, IDs and memory summary. Russian search uses Snowball stemming; exact
+matches rank first. Use optional kind/status filters for structured knowledge.
+Queries containing Cyrillic prefixes retain literal prefix semantics.
 Use memory_sources when source rights or a writable destination are needed;
 it is not a required bootstrap call.
 Do not claim to have read all memory after reading only search excerpts.
@@ -49,3 +50,19 @@ full-document hash, as expected_hash. A search chunk is not a complete file.
 On conflict, read again and reconcile; do not force overwrite contradictory facts.
 If indexed=false, report that Markdown was saved and indexing needs repair;
 do not repeat the write. Report the saved path briefly after success.
+# Session changes
+
+When memory_changes is available, establish a baseline at session start and poll
+with its returned cursor at task boundaries and before memory-dependent decisions.
+Read relevant new or changed knowledge before advancing the cursor. Discard stale
+assumptions after deletions. A rejected cursor requires a new baseline and reread.
+# Remote freshness
+
+Local indexing and memory_changes only observe local Markdown. They do not prove
+that Git-backed knowledge is current. At session start, use memory_freshness with
+fetch=true for relevant Git sources when remote access is authorized. A cached
+comparison with checked_remote=false is not a remote freshness check. If behind,
+use memory_pull within the user's authorization, then poll memory_changes using
+the previous cursor and reread relevant notes. Divergence or dirty files requires
+resolution; never discard local work to update memory. Network failure leaves
+local memory usable but its remote freshness unknown. No automatic push is implied.

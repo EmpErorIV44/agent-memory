@@ -166,6 +166,15 @@ pub(crate) fn index_sources(
         memories::insert(tx, document_id, source_id, &memory, project_scope)?;
     }
     crate::links::index(tx, &link_documents)?;
+    crate::search_metadata::index_morphology(tx)?;
+    let projects = {
+        let mut query = tx.prepare("SELECT id FROM projects ORDER BY id")?;
+        let rows = query.query_map([], |r| r.get::<_, i64>(0))?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()?
+    };
+    for project in projects {
+        crate::changes::capture(tx, project)?;
+    }
     Ok(stats)
 }
 

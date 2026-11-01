@@ -7,8 +7,9 @@ start with memory_list for accepted constraints and preferences, then read the
 relevant full documents with memory_get(project, source_id, path, content_hash).
 memory_get_record returns structured knowledge, not full Markdown. Search for
 additional context or unstructured notes; use memory_sources when source rights
-or a writable destination are needed. Russian search has no stemming; use
-prefixes such as правил*. Search excerpts alone are not a complete read.
+or a writable destination are needed. Russian search uses Snowball stemming and
+kind/status filters. Cyrillic prefixes retain literal prefix semantics.
+Search excerpts alone are not a complete read.
 Apply relevant recorded user preferences and accepted constraints within current
 authorization, and briefly state which constraints guide the work.
 After meaningful work, consider retaining verified results, accepted decisions,

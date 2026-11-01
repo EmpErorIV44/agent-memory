@@ -60,17 +60,46 @@ async fn scenario() -> Result<()> {
     assert_eq!(
         names,
         [
+            "memory_changes",
+            "memory_freshness",
             "memory_get",
             "memory_get_record",
             "memory_history",
+            "memory_link_diagnostics",
             "memory_links",
             "memory_list",
+            "memory_rename",
             "memory_revision_get",
             "memory_search",
             "memory_sources",
-            "memory_sync_status"
+            "memory_sync_status",
+            "memory_verify_evidence"
         ]
     );
+
+    let baseline = call(&client, "memory_changes", json!({"project":"banking"})).await?;
+    assert_ne!(baseline.is_error, Some(true));
+    assert_eq!(
+        baseline.structured_content.as_ref().unwrap()["remote_checked"],
+        false
+    );
+    let cursor = baseline.structured_content.unwrap()["cursor"].clone();
+    std::fs::write(
+        banking.join("session.md"),
+        "# New session knowledge\nexternalmarker\n",
+    )?;
+    let changes = call(
+        &client,
+        "memory_changes",
+        json!({"project":"banking", "since":cursor}),
+    )
+    .await?;
+    assert_ne!(changes.is_error, Some(true));
+    let changes = changes.structured_content.unwrap();
+    assert_eq!(changes["changes"][0]["kind"], "added");
+    assert_eq!(changes["changes"][0]["path"], "session.md");
+    let denied = call(&client, "memory_changes", json!({"project":"storefront"})).await?;
+    assert_eq!(denied.is_error, Some(true));
 
     let result = call(
         &client,
