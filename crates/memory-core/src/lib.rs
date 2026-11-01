@@ -1,7 +1,12 @@
 //! Markdown source models, independent of storage and transport.
 mod edits;
+mod operations;
+pub use operations::{
+    finish_operation, list_operations, markdown_hash, operation_complete, read_operation,
+    save_operation,
+};
 mod history;
-pub use edits::move_markdown;
+pub use edits::{finish_move_markdown, move_markdown};
 pub mod links;
 mod metadata;
 mod write;
@@ -10,8 +15,9 @@ use cap_std::fs::Dir;
 pub use history::{get_revision, list_revisions, PublishedWriteError, Revision, RevisionDocument};
 pub use links::{extract_links, rewrite_links, DocumentLink};
 pub use metadata::{
-    parse_metadata, validate_document_id, DocumentMetadata, Evidence, EvidenceKind, Memory,
-    MemoryKind, MemoryStatus, Relation, RelationKind,
+    current_date_utc, parse_metadata, prepare_note_metadata, validate_document_id,
+    validate_note_date, DocumentMetadata, Evidence, EvidenceKind, Memory, MemoryKind, MemoryStatus,
+    Relation, RelationKind,
 };
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use sha2::{Digest, Sha256};
@@ -34,6 +40,10 @@ pub struct Chunk {
 pub struct Document {
     pub relative_path: String,
     pub stable_id: Option<String>,
+    pub title: Option<String>,
+    pub created: Option<String>,
+    pub updated: Option<String>,
+    pub tags: Vec<String>,
     pub memory: Option<Memory>,
     pub content_hash: String,
     pub byte_size: u64,
@@ -57,7 +67,7 @@ fn visit(directory: &Dir, relative: &Path, documents: &mut Vec<Document>) -> Res
         let entry = entry?;
         let file_type = entry.file_type()?;
         let name = entry.file_name();
-        if name == ".agent-memory-history" {
+        if name == ".agent-memory-history" || name == ".agent-memory-operations" {
             continue;
         }
         let path = relative.join(&name);
@@ -97,6 +107,10 @@ fn visit(directory: &Dir, relative: &Path, documents: &mut Vec<Document>) -> Res
                     .context("source path is not UTF-8")?
                     .replace('\\', "/"),
                 stable_id: document_metadata.stable_id,
+                title: document_metadata.title,
+                created: document_metadata.created,
+                updated: document_metadata.updated,
+                tags: document_metadata.tags,
                 memory: document_metadata.memory,
                 content_hash: content_hash(&bytes),
                 byte_size: bytes.len() as u64,

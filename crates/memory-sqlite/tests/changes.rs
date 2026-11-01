@@ -162,7 +162,7 @@ fn version_four_upgrade_keeps_search_links_and_document_identity() -> Result<()>
     let original = store.search("demo", "stabletarget")?.remove(0);
     drop(store);
     let connection = rusqlite::Connection::open(&db)?;
-    connection.execute_batch("DROP TABLE search_exact_fts; DROP TABLE search_russian_fts; DROP TABLE project_changes; DROP TABLE project_snapshot; DROP TABLE project_clocks; PRAGMA user_version=4;")?;
+    connection.execute_batch("ALTER TABLE documents DROP COLUMN authored_created; ALTER TABLE documents DROP COLUMN authored_updated; ALTER TABLE documents DROP COLUMN tags_json; DROP TABLE search_exact_fts; DROP TABLE search_russian_fts; DROP TABLE project_changes; DROP TABLE project_snapshot; DROP TABLE project_clocks; PRAGMA user_version=4;")?;
     drop(connection);
     let mut store = Store::open(&db)?;
     let baseline = store.changes("demo", None)?;

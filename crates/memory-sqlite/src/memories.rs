@@ -13,6 +13,9 @@ pub struct MemoryRecord {
     pub stable_id: Option<String>,
     pub path: String,
     pub content_hash: String,
+    pub created: Option<String>,
+    pub updated: Option<String>,
+    pub tags: Vec<String>,
 }
 
 fn encoded<T: Serialize>(value: &T) -> Result<String> {
@@ -82,14 +85,26 @@ impl Store {
     pub fn get_memory(&self, project: &str, id: &str) -> Result<Option<MemoryRecord>> {
         let project_id = self.project_id(project)?;
         let row = self.connection.query_row(
-            "SELECT m.kind, m.status, m.summary, d.id, d.source_id, d.stable_id, d.relative_path, d.content_hash FROM memories m JOIN documents d ON d.id=m.document_id WHERE m.project_id=?1 AND m.memory_id=?2 AND EXISTS (SELECT 1 FROM project_sources ps WHERE ps.source_id=d.source_id AND ps.project_id=?1 AND ps.can_read=1)",
+            "SELECT m.kind, m.status, m.summary, d.id, d.source_id, d.stable_id, d.relative_path, d.content_hash, d.authored_created, d.authored_updated, d.tags_json FROM memories m JOIN documents d ON d.id=m.document_id WHERE m.project_id=?1 AND m.memory_id=?2 AND EXISTS (SELECT 1 FROM project_sources ps WHERE ps.source_id=d.source_id AND ps.project_id=?1 AND ps.can_read=1)",
             params![project_id, id], |row| Ok((
                 row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?,
                 row.get::<_, i64>(3)?, row.get::<_, i64>(4)?, row.get::<_, Option<String>>(5)?,
                 row.get::<_, String>(6)?, row.get::<_, String>(7)?,
+                row.get::<_, Option<String>>(8)?, row.get::<_, Option<String>>(9)?, row.get::<_, String>(10)?,
             ))).optional()?;
-        let Some((kind, status, summary, document_id, source_id, stable_id, path, content_hash)) =
-            row
+        let Some((
+            kind,
+            status,
+            summary,
+            document_id,
+            source_id,
+            stable_id,
+            path,
+            content_hash,
+            created,
+            updated,
+            tags_json,
+        )) = row
         else {
             return Ok(None);
         };
@@ -159,6 +174,9 @@ impl Store {
             stable_id,
             path,
             content_hash,
+            created,
+            updated,
+            tags: serde_json::from_str(&tags_json).context("invalid indexed note tags")?,
         }))
     }
 }

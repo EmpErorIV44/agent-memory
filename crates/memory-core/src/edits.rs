@@ -21,6 +21,20 @@ pub fn move_markdown(
         "rename conflict: source changed"
     );
     crate::write_markdown(root, to, content, crate::WriteMode::Create)?;
+    finish_move_markdown(root, from, to, content, expected_hash)
+}
+
+/// Resume source removal only after validating both live copies under the source lock.
+pub fn finish_move_markdown(
+    root: &Path,
+    from: &str,
+    to: &str,
+    content: &str,
+    expected_hash: &str,
+) -> Result<()> {
+    crate::write::validate_path(from)?;
+    crate::write::validate_path(to)?;
+    ensure!(from != to, "rename paths must differ");
     let directory = crate::write::open_root(root)?;
     if let Ok(metadata) = directory.symlink_metadata(".agent-memory.lock") {
         ensure!(
@@ -50,7 +64,17 @@ pub fn move_markdown(
         .file_name()
         .and_then(|name| name.to_str())
         .context("invalid source filename")?;
-    let metadata = parent.symlink_metadata(name)?;
+    let metadata = match parent.symlink_metadata(name) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            ensure!(
+                crate::history::read_live(&directory, to)?.as_deref() == Some(content.as_bytes()),
+                "rename destination changed"
+            );
+            return Ok(());
+        }
+        Err(error) => return Err(error.into()),
+    };
     ensure!(
         metadata.is_file() && !metadata.file_type().is_symlink(),
         "rename source must be a regular file"
@@ -61,7 +85,7 @@ pub fn move_markdown(
         "rename conflict: source changed after destination publication; both copies retained"
     );
     ensure!(
-        crate::read_markdown(root, to)? == content,
+        crate::history::read_live(&directory, to)?.as_deref() == Some(content.as_bytes()),
         "rename destination changed; original retained"
     );
     let history =

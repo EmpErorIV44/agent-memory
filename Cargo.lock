@@ -655,6 +655,7 @@ dependencies = [
  "anyhow",
  "cap-primitives",
  "cap-std",
+ "chrono",
  "pulldown-cmark",
  "serde",
  "serde_json",

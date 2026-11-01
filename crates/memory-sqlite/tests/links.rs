@@ -141,7 +141,7 @@ fn version_three_links_backfill_on_unchanged_refresh_and_roll_back_failed_scan()
     store.index("demo")?;
     drop(store);
     let connection = rusqlite::Connection::open(&db)?;
-    connection.execute_batch("DROP TABLE search_exact_fts; DROP TABLE search_russian_fts; DROP TABLE project_changes; DROP TABLE project_snapshot; DROP TABLE project_clocks; DROP TABLE document_links; PRAGMA user_version=3;")?;
+    connection.execute_batch("ALTER TABLE documents DROP COLUMN authored_created; ALTER TABLE documents DROP COLUMN authored_updated; ALTER TABLE documents DROP COLUMN tags_json; DROP TABLE search_exact_fts; DROP TABLE search_russian_fts; DROP TABLE project_changes; DROP TABLE project_snapshot; DROP TABLE project_clocks; DROP TABLE document_links; PRAGMA user_version=3;")?;
     drop(connection);
     let mut store = Store::open(&db)?;
     assert!(store

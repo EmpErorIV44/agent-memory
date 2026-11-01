@@ -103,7 +103,7 @@ pub(crate) fn child_directory(parent: &Dir, name: &str, create: bool) -> Result<
     )))
 }
 
-fn private_directory(directory: &Dir) -> Result<()> {
+pub(crate) fn private_directory(directory: &Dir) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

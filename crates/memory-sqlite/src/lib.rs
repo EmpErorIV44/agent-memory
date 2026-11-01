@@ -16,10 +16,10 @@ mod revisions;
 mod search_metadata;
 pub use memories::MemoryRecord;
 pub use memory_core::{Revision, RevisionDocument};
-pub use rename::{RenameEdit, RenamePlan, RenameResult};
+pub use rename::{RenameEdit, RenameOperation, RenamePlan, RenameResult};
 pub use search_metadata::SearchOptions;
 
-pub const SCHEMA_VERSION: i64 = 6;
+pub const SCHEMA_VERSION: i64 = 7;
 
 pub struct Store {
     connection: Connection,
@@ -39,6 +39,10 @@ pub struct FullDocument {
     pub path: String,
     pub content_hash: String,
     pub content: String,
+    pub created: Option<String>,
+    pub updated: Option<String>,
+    pub tags: Vec<String>,
+    pub title: Option<String>,
 }
 
 /// A saved Markdown file may outlive a failed index update. Do not retry the write blindly.
@@ -118,6 +122,7 @@ impl Store {
                     6,
                     include_str!("../../../migrations/006_russian_search.sql"),
                 ),
+                (7, include_str!("../../../migrations/007_note_metadata.sql")),
             ] {
                 if current < target {
                     // SQL files remain executable standalone; omit their outer wrapper here.
@@ -204,12 +209,61 @@ impl Store {
         content: &str,
         expected_hash: Option<&str>,
     ) -> Result<WriteResult> {
+        self.write_inner(project, source_id, path, content, expected_hash, None)
+    }
+
+    /// Explicitly maintain authored dates while retaining normal permission and hash guards.
+    pub fn write_stamped(
+        &mut self,
+        project: &str,
+        source_id: i64,
+        path: &str,
+        content: &str,
+        expected_hash: Option<&str>,
+    ) -> Result<WriteResult> {
+        let today = memory_core::current_date_utc()?;
+        self.write_inner(
+            project,
+            source_id,
+            path,
+            content,
+            expected_hash,
+            Some(&today),
+        )
+    }
+
+    fn write_inner(
+        &mut self,
+        project: &str,
+        source_id: i64,
+        path: &str,
+        content: &str,
+        expected_hash: Option<&str>,
+        stamp_today: Option<&str>,
+    ) -> Result<WriteResult> {
         let project_id = self.project_id(project)?;
         // Serialize with permission changes and SQLite writers until file publication completes.
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let root: String = tx.query_row("SELECT s.root_path FROM sources s JOIN project_sources ps ON ps.source_id = s.id WHERE s.id = ?1 AND ps.project_id = ?2 AND ps.can_read = 1 AND ps.can_write = 1", params![source_id, project_id], |row| row.get(0)).optional()?.context("source not found or write access denied")?;
+        let prepared;
+        let content = if let Some(today) = stamp_today {
+            let existing = if let Some(hash) = expected_hash {
+                let current = memory_core::read_markdown(Path::new(&root), path)?;
+                anyhow::ensure!(
+                    memory_core::content_hash(current.as_bytes()) == hash,
+                    "write conflict: document changed"
+                );
+                Some(current)
+            } else {
+                None
+            };
+            prepared = memory_core::prepare_note_metadata(content, existing.as_deref(), today)?;
+            prepared.as_str()
+        } else {
+            content
+        };
         let metadata = memory_core::parse_metadata(content)?;
         if let Some(memory) = &metadata.memory {
             anyhow::ensure!(
@@ -350,11 +404,16 @@ impl Store {
             memory_core::content_hash(content.as_bytes()) == content_hash,
             "document changed on disk; refresh memory_list or memory_search"
         );
+        let metadata = memory_core::parse_metadata(&content)?;
         Ok(Some(FullDocument {
             stable_id,
             source_id,
             path: path.to_owned(),
             content_hash: content_hash.to_owned(),
+            created: metadata.created,
+            updated: metadata.updated,
+            tags: metadata.tags,
+            title: metadata.title,
             content,
         }))
     }

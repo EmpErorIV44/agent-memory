@@ -1,47 +1,55 @@
-# Устойчивые документы, восстановление и структурированная память
+# Stable documents, recovery and structured memory
 
-Markdown хранит знания; конфигурация владельца хранит регистрации и права;
-SQLite хранит пересоздаваемые проекции. Документ, фрагмент поиска и логическое
-утверждение Memory имеют разные идентификаторы.
+Markdown stores knowledge; owner configuration stores registrations and permissions;
+SQLite stores rebuildable projections. Documents, search chunks and logical Memory
+statements have different identifiers.
 
-## ID документов и frontmatter
+## Document IDs and frontmatter
 
 ```yaml
 ---
 id: ADR-001
-title: Архитектура Agent Memory
+title: Agent Memory architecture
+created: 2026-11-01
+updated: 2026-11-02
 status: accepted
 tags: [architecture, local-first]
 ---
 ```
 
-`id` — необязательная непустая строка, уникальная внутри физического источника.
-Переименование файла внутри того же источника сохраняет ID строки документа
-в текущей SQLite. Файлы без ID поддерживаются; их идентичность определяется путём.
-После полного восстановления числовые ID SQLite могут отличаться: постоянные
-ссылки следует строить на строковых ID, а не на `chunk_id`.
+`id` is an optional nonempty string, unique within a physical source. Renaming a
+file within the same source preserves its document row ID in the current SQLite
+database. Files without IDs are supported; their identity is determined by path.
+Numeric SQLite IDs may change after a full rebuild: use string IDs for permanent
+references rather than `chunk_id`.
 
-Неизвестные корневые YAML-поля ADR допустимы. Числовой, пустой или повторяющийся
-ID, незакрытый frontmatter и некорректные структурированные поля возвращают ошибку.
-Поле ID ограничено 256 байтами, frontmatter — 64 KiB. Номера строк поиска относятся
-к оригинальному файлу, включая frontmatter. Полный YAML не входит в FTS5-поиск;
-отдельный индекс метаданных содержит путь, ID документа, `memory.id` и
-`memory.summary` в пределах доступного проекта. Запрос целиком ищется
-в объединённом проектном представлении текста и метаданных: `AND` может
-объединять слово из текста и слово из метаданных. Совпадение метаданных возвращает
-существующие фрагменты документа; документ без текстовых фрагментов читайте
-через `memory_list` и `memory_get` по пути. Русские формы сопоставляются через
-Snowball-стемминг; доступны фильтры kind/status. См. [поиск](search.md).
+Optional `created`/`updated` calendar dates and a validated `tags` list describe
+the authored note. They are returned in structured Memory and full-document
+reads, remain distinct from index/filesystem timestamps, and survive rebuilds
+from Markdown. See [note dates and tags](note-metadata.md) for validation,
+schema-upgrade backfilling, and opt-in write stamping.
 
-## Конфигурация владельца и восстановление
+Unknown root-level ADR YAML fields are allowed. Numeric, empty or duplicate IDs,
+unclosed frontmatter and invalid structured fields return an error. The ID is
+limited to 256 bytes and frontmatter to 64 KiB. Search line numbers refer to the
+original file, including frontmatter. The complete YAML is not included in FTS5
+search; a separate metadata index contains the path, document ID, `memory.id` and
+`memory.summary` within the accessible project. The whole query is evaluated
+against the combined project view of text and metadata: `AND` can combine a word
+from text with a word from metadata. Metadata matches return existing document
+chunks; read documents without text chunks through `memory_list` and path-based
+`memory_get`. Russian word forms are matched using Snowball stemming; kind/status
+filters are available. See [search](search.md).
 
-Экспорт текущих регистраций:
+## Owner configuration and recovery
+
+Export current registrations:
 
 ```sh
 agent-memory --database ./agent-memory.sqlite config export --output ./agent-memory.config.json
 ```
 
-Пример JSON:
+Example JSON:
 
 ```json
 {
@@ -57,38 +65,37 @@ agent-memory --database ./agent-memory.sqlite config export --output ./agent-mem
 }
 ```
 
-Относительные пути разрешаются от директории конфигурации. Экспорт записывает
-канонические абсолютные пути. На другом устройстве их нужно изменить явно.
-Конфигурация не содержит текст заметок и не является их резервной копией.
-Если сам файл конфигурации — символическая ссылка, относительные пути считаются
-от директории её целевого файла. Владелец может явно указать корень источника
-через символическую ссылку: при загрузке он преобразуется в канонический путь.
-Индексатор затем открывает зарегистрированный корень без следования подменённым
-символическим ссылкам; внутренние символические ссылки источника пропускаются.
+Relative paths are resolved against the configuration directory. Export writes
+canonical absolute paths. Change these explicitly when moving to another device.
+The configuration does not contain note text and is not a backup of the notes.
+If the configuration file itself is a symbolic link, relative paths are resolved
+against its target file's directory. The owner may explicitly specify a source
+root through a symbolic link: loading converts it to a canonical path. The indexer
+then opens the registered root without following substituted symbolic links;
+symbolic links inside the source are skipped.
 
 ```sh
 agent-memory --database ./agent-memory.sqlite rebuild --config ./agent-memory.config.json
 ```
 
-Команда восстанавливает проекты, привязки источников, права, документы, FTS5
-и структурированные знания. Конфигурация задаёт полный набор регистраций:
-отсутствующие в ней привязки отзываются. Ошибка чтения, дубликаты или некорректные
-метаданные откатывают транзакцию; существующая рабочая база сохраняется.
-Файл открытой базы не заменяется, поэтому WAL и существующие подключения не
-остаются привязанными к удалённому файлу. `rebuild` не записывает Markdown.
+This command restores projects, source bindings, permissions, documents, FTS5 and
+structured knowledge. The configuration defines the complete set of registrations:
+bindings absent from it are revoked. Read errors, duplicates or invalid metadata
+roll back the transaction, preserving the existing working database. The open
+database file is not replaced, so WAL and existing connections do not remain
+attached to a deleted file. `rebuild` does not write Markdown.
 
-После CLI-изменений регистрации сохраните новую конфигурацию. `config export`
-без `--output` выводит JSON в stdout; `--output` отказывается перезаписывать файл.
-Новый файл публикуется целиком после записи и синхронизации временного файла в
-той же директории; ошибка до публикации не оставляет частично записанный manifest.
-Обновление существующего manifest — явное действие владельца. Данные заметки
-не могут зарегистрировать источник или выдать права доступа.
+Save a new configuration after changing registrations through the CLI. Without
+`--output`, `config export` writes JSON to stdout; `--output` refuses to overwrite
+an existing file. A new file is published in full after a temporary file in the
+same directory has been written and synced; failures before publication do not
+leave a partially written manifest. Updating an existing manifest is an explicit
+owner action. Note content cannot register a source or grant access permissions.
 
-## Memory, Evidence и Relation
+## Memory, Evidence and Relation
 
-Один Markdown-документ может объявить одну логическую Memory в блоке `memory`.
-Это минимальный формат: обычные документы могут содержать только `id` или
-не иметь frontmatter вообще.
+A Markdown document can declare one logical Memory in its `memory` block. This is
+a minimal format: ordinary documents may have only an `id` or no frontmatter at all.
 
 ```markdown
 ---
@@ -98,54 +105,54 @@ memory:
   project: banking
   kind: decision
   status: accepted
-  summary: Срок действия сессии — 30 минут
+  summary: Sessions expire after 30 minutes
   evidence:
     - kind: document
       reference: decisions/session-policy.md
-      description: Принятое решение владельца проекта
+      description: Decision accepted by the project owner
   relations:
     - kind: supersedes
       target: previous-auth-policy
 ---
-# Срок действия сессии
+# Session lifetime
 
-Сессия действует 30 минут. Обоснование и ограничения решения описаны здесь.
+A session lasts 30 minutes. The rationale and constraints of the decision are described here.
 ```
 
-Значения:
+Values:
 
-| Поле | Допустимые значения |
+| Field | Allowed values |
 | --- | --- |
 | `memory.kind` | `fact`, `decision`, `implementation`, `constraint` |
 | `memory.status` | `planned`, `implemented`, `accepted`, `superseded`, `deprecated` |
 | `evidence.kind` | `document`, `commit`, `file`, `test`, `url`, `manual` |
 | `relations.kind` | `supersedes`, `relates_to`, `depends_on`, `implements`, `contradicts` |
 
-`memory.id` уникален внутри проекта и не обязан совпадать с ID документа.
-`project`, `kind`, `status` и непустой `summary` обязательны. `evidence` и
-`relations` по умолчанию пустые. Связь указывает на ID другой Memory того же
-проекта. Неизвестные поля внутри структурированной Memory отклоняются, чтобы
-опечатки не приводили к молчаливой потере знаний.
+`memory.id` is unique within a project and need not match the document ID.
+`project`, `kind`, `status` and a nonempty `summary` are required. `evidence` and
+`relations` default to empty lists. A relation targets another Memory ID in the
+same project. Unknown fields inside structured Memory are rejected so that typos
+do not silently lose knowledge.
 
-Источник должен быть явно привязан к указанному проекту с правом чтения;
-`memory.project` не предоставляет доступа. Запись через CLI/MCP не может
-объявить Memory другого проекта, даже если физический источник общий.
-Прямое чтение и список проверяют текущие права. Возвращаются только связи,
-цели которых существуют и доступны в том же проекте; скрытые и неразрешённые
-цели не выдаются. Самоссылки и одинаковые повторные связи отклоняются.
+The source must be explicitly bound to the specified project with read permission;
+`memory.project` does not grant access. CLI/MCP writes cannot declare a Memory for
+another project, even when the physical source is shared. Direct reads and lists
+check current permissions. Only relations with existing, accessible targets in the
+same project are returned; hidden and unresolved targets are omitted. Self-links
+and identical duplicate relations are rejected.
 
-Ссылки Evidence с `kind: document` разрешаются по относительному пути от корня
-источника или строковому ID документа среди доступных источников проекта.
-Неразрешённые ссылки не включаются в структурированный ответ, но остаются
-в исходном YAML. Поэтому ответ `memory_get_record` не заменяет полный Markdown:
-для обновления прочитайте оригинальный документ и сохраните остальные поля.
+Evidence references with `kind: document` are resolved by a path relative to the
+source root or a string document ID among the project's accessible sources.
+Unresolved references are omitted from structured responses but remain in the
+original YAML. A `memory_get_record` response therefore does not replace the full
+Markdown: read the original document and preserve its other fields when updating.
 
-Evidence — сохранённая ссылка, а не результат автоматической проверки.
-Явная локальная [проверка Git Evidence](git-evidence.md) доступна через
-`memory_verify_evidence` для owner-configured репозиториев; она не меняет статус знания.
-Индексатор не открывает URL, не запускает тесты и не выполняет Git-команды.
-Связь `supersedes` сохраняет факт отношения; она сама не меняет статус целевой
-Memory. Для изменения статуса отредактируйте соответствующий Markdown явно.
+Evidence is a stored reference, not the result of automatic verification. Explicit
+local [Git Evidence verification](git-evidence.md) is available through
+`memory_verify_evidence` for owner-configured repositories; it does not change
+knowledge status. The indexer does not open URLs, run tests or execute Git commands.
+A `supersedes` relation records the relationship; it does not itself change the
+target Memory's status. Edit the corresponding Markdown explicitly to change it.
 
 CLI:
 
@@ -161,29 +168,28 @@ MCP:
 {"tool":"memory_get_record","arguments":{"project":"banking","memory_id":"auth-policy"}}
 ```
 
-`memory_list` возвращает `{"memories":[...]}`, а `memory_get_record` —
-`{"record":...}`. Запись содержит объект `memory`, `document_id`, `source_id`,
-`path` и `content_hash` полного документа. Для начального чтения ограничений
-и предпочтений используйте список, затем полный исходный документ:
+`memory_list` returns `{"memories":[...]}` and `memory_get_record` returns
+`{"record":...}`. Each record contains a `memory` object, `document_id`, `source_id`,
+`path` and the full document's `content_hash`. To bootstrap constraints and
+preferences, use the list and then read the complete source document:
 
 ```json
 {"tool":"memory_get","arguments":{"project":"banking","source_id":1,"path":"decisions/auth.md","content_hash":"<full-document SHA-256>"}}
 ```
 
-Ответ `{"document":...}` содержит `content` с полным Markdown, включая
-frontmatter, и `content_hash` полного файла. Подставьте координаты и хеш из
-реальной записи. `memory_get_record` возвращает структурированную проекцию,
-а не полный Markdown. Режим `memory_get` по `chunk_id` и хешу остаётся доступен;
-добавьте `include_document=true`, если нужен полный файл вместе с фрагментом.
+The `{"document":...}` response contains `content` with the complete Markdown,
+including frontmatter, and the full file's `content_hash`. Use coordinates and a
+hash from an actual record. `memory_get_record` returns a structured projection,
+not complete Markdown. The `memory_get` mode using `chunk_id` and a hash remains
+available; add `include_document=true` for the full file alongside the chunk.
 
-Создание и обновление структурированной записи выполняется обычным
-`memory_write`: передавайте полный Markdown, а при обновлении — актуальный
-`expected_hash` полного документа. Структурные метаданные проверяются до
-публикации файла. Существующая семантика `indexed=false` сохраняется: если
-файл опубликован, а индексирование затем завершилось ошибкой, повторять запись
-нельзя; исправьте причину и выполните `index`.
+Create and update structured records through ordinary `memory_write`: provide
+complete Markdown and, for updates, the current full-document `expected_hash`.
+Structural metadata is validated before file publication. Existing `indexed=false`
+semantics remain: if the file was published but subsequent indexing failed, do not
+repeat the write; fix the cause and run `index`.
 
-Миграция SQLite v1 → v2 выполняется при открытии новой версией приложения.
-Старый MCP-процесс v1 не умеет открывать v2: после обновления бинарника
-перезапустите MCP-клиент. [Долговечная история ревизий](revisions.md) хранится
-в источнике отдельно от индекса и доступна через CLI и MCP.
+SQLite v1 → v2 migration runs when the database is opened by the newer application.
+An old v1 MCP process cannot open v2: restart the MCP client after updating the
+binary. [Durable revision history](revisions.md) is stored in the source separately
+from the index and is available through CLI and MCP.

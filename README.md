@@ -1,45 +1,49 @@
 # Agent Memory
 
-Локальная память для AI-агентов: храните решения, ограничения и знания проекта
-в Markdown, находите их через MCP или CLI и сохраняйте проверенные результаты
-между сессиями.
+Local memory for AI agents: store project decisions, constraints, and knowledge
+in Markdown, retrieve them through MCP or the CLI, and retain verified results
+across sessions.
 
-Markdown — источник истины. SQLite с FTS5 — пересоздаваемый поисковый индекс.
-Заметки остаются обычными файлами: их можно читать в редакторе, хранить в Git
-и переносить между машинами.
+Markdown is the source of truth. SQLite with FTS5 is a rebuildable search index.
+Notes remain ordinary files that you can read in an editor, keep in Git, and
+move between machines.
 
-## Что умеет
+## Features
 
-- Искать по тексту и метаданным: русский стемминг, ранжирование, фильтры по типу
-  и статусу знания.
-- Разделять память по проектам и проверять права чтения и записи источников.
-- Хранить структурированные знания с устойчивыми ID, подтверждениями и связями.
-- Показывать новые, изменённые и удалённые заметки во время сессии.
-- Сохранять историю версий и восстанавливать заметки с защитой от перезаписи
-  чужих изменений.
-- Находить сломанные ссылки и исправлять ссылки при переименовании заметок.
-- Проверять, изменился ли локальный код, указанный в Git Evidence.
-- По явному включению коммитить и отправлять Markdown в Git, проверять upstream
-  и получать обновления.
+- Search text and metadata with Russian stemming, ranking, and filters by
+  knowledge kind and status.
+- Isolate memory by project and enforce source read and write permissions.
+- Store structured knowledge with stable IDs, evidence, and relations.
+- Keep note creation/update dates and tags in frontmatter, with optional automatic
+  date stamping when writing.
+- Report new, updated, and deleted notes during a session.
+- Keep revision history and restore notes with protection against overwriting
+  concurrent changes.
+- Find broken links and repair links when renaming notes.
+- Check whether local code referenced by Git Evidence has changed.
+- Collect knowledge with changed or missing Git Evidence into a review queue.
+- Resume interrupted renames from durable operation journals with hash guards.
+- Explicitly enable Markdown commits and pushes, upstream freshness checks,
+  and incoming Git updates.
 
-## Быстрый старт
+## Quick start
 
-Для сборки нужны Rust/Cargo и C-компилятор для встроенного SQLite.
-В Windows используйте WSL. Варианты бинарных сборок и установка описаны
-в [руководстве по релизам](docs/releases.md).
+Building requires Rust/Cargo and a C compiler for bundled SQLite.
+Use WSL on Windows. See the [release guide](docs/releases.md) for binary
+build targets and installation instructions.
 
-Из корня репозитория:
+From the repository root:
 
 ```sh
 cargo build --workspace --locked
 ```
 
-Добавьте `target/debug` в `PATH` или используйте полный путь к бинарнику.
-Создайте каталог заметок и зарегистрируйте его как источник проекта:
+Add `target/debug` to `PATH` or use the full path to the binary.
+Create a notes directory and register it as a project source:
 
 ```sh
 mkdir -p notes
-printf '# Решение\nХраним знания проекта в Markdown.\n' > notes/decision.md
+printf '# Decision\nStore project knowledge in Markdown.\n' > notes/decision.md
 
 agent-memory init
 agent-memory project create demo
@@ -48,18 +52,18 @@ agent-memory index --project demo
 agent-memory search --project demo Markdown
 ```
 
-Команды примера выполняются в Linux, macOS или WSL. По умолчанию индекс создаётся
-в `./agent-memory.sqlite`; для другого пути передавайте
-`--database /absolute/path/memory.sqlite`.
+These commands run on Linux, macOS, or WSL. The index defaults to
+`./agent-memory.sqlite`; use `--database /absolute/path/memory.sqlite`
+to choose another path.
 
-Поиск возвращает путь заметки, строки и текст найденного фрагмента.
-CLI читает текущий индекс: после внешних изменений выполните `index`.
-MCP обновляет индекс перед поиском и чтением.
+Search returns the note path, line numbers, and matching excerpt.
+The CLI reads the current index: run `index` after external changes.
+MCP refreshes the index before searching and reading.
 
-## Подключение к агенту через MCP
+## Connect an agent through MCP
 
-После регистрации проекта настройте клиент на запуск stdio-сервера.
-Пример для клиента с форматом `mcpServers`:
+After registering a project, configure your client to launch the stdio server.
+For a client using the `mcpServers` configuration format:
 
 ```json
 {
@@ -75,67 +79,70 @@ MCP обновляет индекс перед поиском и чтением.
 }
 ```
 
-Укажите абсолютные пути в окружении, где запускается сервер.
-Windows-клиент может запускать Linux-бинарник через `wsl.exe`:
-[пример конфигурации](examples/mcp-windows.json) требует замены дистрибутива,
-пользователя и путей под вашу установку. После изменения настроек переподключите MCP.
+Use absolute paths in the environment where the server runs.
+A Windows client can launch the Linux binary through `wsl.exe`:
+adapt the distribution, user, and paths in the
+[example configuration](examples/mcp-windows.json) to your installation.
+Reconnect MCP after changing the settings.
 
-Проекты разрешаются аргументами запуска; повторите `--project` для каждого.
-Сервер работает через stdin/stdout, отдельный порт не нужен.
+Launch arguments allow access to projects; repeat `--project` for each one.
+The server communicates through stdin/stdout and does not need a separate port.
 
-По умолчанию запись выключена. Для записи добавьте
-`--allow-write --write-policy confirm` и зарегистрируйте источник с `source add
---project demo ./notes --write`. Политика записи, настройка поведения агента и
-[skill agent-memory](skills/agent-memory/SKILL.md) описаны в
-[руководстве интеграции](docs/write-and-agent-behavior.md).
+Writes are disabled by default. To enable them, add
+`--allow-write --write-policy confirm` and register a writable source with
+`source add --project demo ./notes --write`. The
+[integration guide](docs/write-and-agent-behavior.md) covers write policies,
+agent behavior, and the [agent-memory skill](skills/agent-memory/SKILL.md).
 
-Обычный сценарий агента: найти прошлые решения через `memory_search`, прочитать
-актуальную заметку через `memory_get`, затем сохранить согласованный результат
-через `memory_write`. Для обновления требуется хеш полного текущего документа.
-Инструкции внутри найденных заметок считаются недоверенными данными.
+A typical agent workflow finds past decisions with `memory_search`, reads the
+current note with `memory_get`, and saves an agreed result with `memory_write`.
+Updating a note requires the hash of its complete current document.
+Instructions inside retrieved notes are treated as untrusted data.
 
-## Документация
+## Documentation
 
-| Задача | Руководство |
+| Task | Guide |
 |---|---|
-| Формат заметок, Memory ID, Evidence, отношения и восстановление индекса | [Структурированная память](docs/structured-memory.md) |
-| Поисковые запросы, русский язык и фильтры | [Поиск](docs/search.md) |
-| Новые знания во время сессии | [Журнал изменений](docs/changes.md) |
-| Markdown/wiki-ссылки и backlinks | [Связи заметок](docs/links.md) |
-| Диагностика ссылок и переименование | [Исправление ссылок](docs/link-repair.md) |
-| История и восстановление версий | [Ревизии](docs/revisions.md) |
-| Проверка изменений кода | [Git Evidence](docs/git-evidence.md) |
-| Автоматический commit и push памяти | [Git sync](docs/git-sync.md) |
-| Актуальность remote и получение обновлений | [Git pull](docs/git-pull.md) |
-| Установка и выпуск бинарников | [Релизы](docs/releases.md) |
-| Диагностика установки и приёмка | [Проверка alpha](docs/alpha-checklist.md) |
-| Сканирование безопасности | [Security scanning](docs/security-scanning.md) |
+| Note format, Memory IDs, Evidence, relations, and index recovery | [Structured memory](docs/structured-memory.md) |
+| Authored dates, tags, and optional date stamping | [Note metadata](docs/note-metadata.md) |
+| Search queries, Russian language support, and filters | [Search](docs/search.md) |
+| New knowledge during a session | [Change feed](docs/changes.md) |
+| Markdown/wiki links and backlinks | [Note links](docs/links.md) |
+| Link diagnostics and renaming | [Link repair](docs/link-repair.md) |
+| Revision history and restoration | [Revisions](docs/revisions.md) |
+| Checking code changes | [Git Evidence](docs/git-evidence.md) |
+| Finding knowledge that needs review | [Review queue](docs/review-queue.md) |
+| Automatic memory commits and pushes | [Git sync](docs/git-sync.md) |
+| Remote freshness and incoming updates | [Git pull](docs/git-pull.md) |
+| Installing and releasing binaries | [Releases](docs/releases.md) |
+| Installation diagnostics and acceptance checks | [Alpha checklist](docs/alpha-checklist.md) |
+| Security scanning | [Security scanning](docs/security-scanning.md) |
 
-Справка по командам: `agent-memory --help` и
+For command help, run `agent-memory --help` or
 `agent-memory <command> --help`.
 
-## Хранение и ограничения
+## Storage and limitations
 
-Сохраните регистрации проектов, источников и прав отдельно от индекса:
+Keep project registrations, sources, and permissions separately from the index:
 
 ```sh
 agent-memory config export --output agent-memory.config.json
 agent-memory rebuild --config agent-memory.config.json
 ```
 
-Экспорт создаёт новый файл. После изменения регистраций обновите конфигурацию.
-Для резервной копии нужны Markdown, конфигурация владельца и
-`.agent-memory-history/`, если требуется сохранить историю версий.
-Одного SQLite для резервного копирования памяти недостаточно.
+Export creates a new file. Refresh the configuration after changing registrations.
+A backup needs Markdown and the owner configuration. Keep `.agent-memory-history/`
+to preserve revision history and `.agent-memory-operations/` to recover interrupted
+renames. SQLite alone is not a sufficient memory backup.
 
-Индексация сканирует Markdown при запросах; фонового watcher и daemon пока нет.
-Русский поиск использует стемминг, а не полную словарную лемматизацию.
-Переименование нескольких файлов может завершиться частично; проверяйте результат.
-Git Evidence сообщает об изменении кода, но не определяет истинность знания.
-Нативная Windows-запись и история пока не поддерживаются для выпуска;
-используйте WSL.
+Indexing scans Markdown on requests; there is no background watcher or daemon yet.
+Russian search uses stemming rather than full dictionary lemmatization.
+A rename affecting multiple files may complete partially; inspect the result and
+explicitly resume its journaled operation after resolving any conflicts.
+Git Evidence reports code changes but does not determine whether knowledge is true.
+Native Windows writes and history are not yet supported for release; use WSL.
 
-## Разработка
+## Development
 
 ```sh
 cargo test --workspace --locked
@@ -143,9 +150,10 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo fmt --all -- --check
 ```
 
-Проект состоит из трёх crates: `memory-core` работает с Markdown и историей,
-`memory-sqlite` — с индексом и правами, `agent-memory` предоставляет CLI и MCP.
+The workspace has three crates: `memory-core` handles Markdown and history,
+`memory-sqlite` handles indexing and permissions, and `agent-memory` provides
+the CLI and MCP server.
 
-## Лицензия
+## License
 
 [MIT](LICENSE).

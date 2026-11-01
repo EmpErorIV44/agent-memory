@@ -122,10 +122,12 @@ pub(crate) fn index_sources(
                 previous.unwrap().id
             } else {
                 let byte_size = i64::try_from(document.byte_size).context("document too large")?;
-                let title = document
-                    .chunks
-                    .first()
-                    .map_or("", |chunk| chunk.heading.as_str());
+                let title = document.title.as_deref().unwrap_or_else(|| {
+                    document
+                        .chunks
+                        .first()
+                        .map_or("", |chunk| chunk.heading.as_str())
+                });
                 let id = if let Some(old) = previous {
                     tx.execute("UPDATE documents SET relative_path=?1, stable_id=?2, title=?3, content_hash=?4, file_mtime_ns=?5, byte_size=?6, indexed_at=unixepoch() WHERE id=?7",
                         params![document.relative_path, document.stable_id, title, document.content_hash,
@@ -152,6 +154,12 @@ pub(crate) fn index_sources(
                 }
                 id
             };
+            // Also refresh unchanged documents after a schema upgrade: authored
+            // metadata is derived from Markdown, not filesystem or index times.
+            tx.execute(
+                "UPDATE documents SET authored_created=?1, authored_updated=?2, tags_json=?3, title=?4 WHERE id=?5",
+                params![document.created, document.updated, serde_json::to_string(&document.tags)?, document.title.as_deref().unwrap_or_else(|| document.chunks.first().map_or("", |chunk| chunk.heading.as_str())), document_id],
+            )?;
             link_documents.push((document_id, document.clone()));
             if let Some(memory) = &document.memory {
                 projections.push((document_id, source_id, memory.clone()));

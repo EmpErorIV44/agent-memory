@@ -49,6 +49,24 @@ struct ProjectRequest {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct ReviewQueueRequest {
+    project: String,
+    /// Include records with uncheckable Git evidence as well as changed or missing evidence.
+    #[serde(default)]
+    include_unknown: bool,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RenameResumeRequest {
+    project: String,
+    source_id: i64,
+    /// Operation ID returned by memory_rename or memory_rename_operations.
+    operation_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct ChangesRequest {
     project: String,
     /// Omit to establish a baseline; pass the last returned opaque cursor to poll.
@@ -136,6 +154,9 @@ struct WriteRequest {
     content: String,
     /// Omit to create a NEW file only; to update, use content_hash from memory_get(include_document=true).
     expected_hash: Option<String>,
+    /// Opt in to maintaining frontmatter created/updated with the current UTC day.
+    #[serde(default)]
+    stamp_metadata: bool,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -194,6 +215,7 @@ impl MemoryServer {
             tools.remove_route("memory_write");
             tools.remove_route("memory_restore");
             tools.remove_route("memory_pull");
+            tools.remove_route("memory_rename_resume");
             // Preview remains available; the handler checks authorization before applying.
         }
         tools
@@ -227,6 +249,62 @@ impl MemoryServer {
 
 #[tool_router]
 impl MemoryServer {
+    #[tool(
+        annotations(read_only_hint = true, open_world_hint = false),
+        description = "Collect active readable knowledge whose owner-configured local Git evidence changed or disappeared. include_unknown also includes uncheckable Git evidence. Refreshes the index; does not fetch, run tests, modify notes or decide whether a claim is true. Recomputed on each call; review current full notes and evidence before making explicit hash-guarded updates."
+    )]
+    async fn memory_review_queue(
+        &self,
+        Parameters(request): Parameters<ReviewQueueRequest>,
+    ) -> CallToolResult {
+        let repositories = self.evidence_repositories.clone();
+        self.execute(request.project, true, move |store, project| {
+            crate::review::queue(store, &repositories, project, request.include_unknown)
+        })
+        .await
+    }
+
+    #[tool(
+        annotations(read_only_hint = true, open_world_hint = false),
+        description = "List durable rename operations for a readable source, including incomplete operations. Does not refresh the Markdown index, so recovery remains discoverable when a partial move left duplicate document IDs. Inspect the journaled operation before explicitly resuming it."
+    )]
+    async fn memory_rename_operations(
+        &self,
+        Parameters(request): Parameters<SyncStatusRequest>,
+    ) -> CallToolResult {
+        self.execute(request.project, false, move |store, project| {
+            Ok(serde_json::to_value(
+                store.rename_operations(project, request.source_id)?,
+            )?)
+        })
+        .await
+    }
+
+    #[tool(
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            open_world_hint = false
+        ),
+        description = "Explicitly resume a durable rename operation by operation_id. Requires writes enabled and current source write permission. Recognizes previously published steps by content hashes; stops on intervening edits without overwriting them. Can partially succeed: inspect complete, partial, error and indexed fields. Never retry the original rename plan after partial publication."
+    )]
+    async fn memory_rename_resume(
+        &self,
+        Parameters(request): Parameters<RenameResumeRequest>,
+    ) -> CallToolResult {
+        if !self.allow_write {
+            return tool_error("Markdown writes are disabled");
+        }
+        self.execute(request.project, false, move |store, project| {
+            Ok(serde_json::to_value(store.rename_resume(
+                project,
+                request.source_id,
+                &request.operation_id,
+            )?)?)
+        })
+        .await
+    }
+
     #[tool(
         annotations(read_only_hint = true, open_world_hint = false),
         description = "Verify file/commit evidence for a readable Memory using owner-configured project-scoped Git repositories. Supports git:ALIAS@FULL_COMMIT:path for file and git:ALIAS@FULL_COMMIT for commit. Reports unchanged, changed, missing or unknown against raw local worktree bytes; never fetches, executes tests, follows URLs or changes knowledge status. Unchanged is not proof that a claim is true."
@@ -265,7 +343,7 @@ impl MemoryServer {
             destructive_hint = true,
             open_world_hint = false
         ),
-        description = "Preview a note rename and link repairs by omitting expected_plan_hash. Review the plan before applying with its hash. Apply requires writes enabled and source write permission; stale plans, destination overwrite and unsafe paths are refused. Multi-file publication can partially succeed: inspect result before retrying, and refresh the plan after errors. Does not infer semantic memory.relations."
+        description = "Preview a note rename and link repairs by omitting expected_plan_hash. Review the plan before applying with its hash. Apply requires writes enabled and source write permission; stale plans, destination overwrite and unsafe paths are refused. A durable operation journal is saved before publication. Multi-file publication can partially succeed: inspect operation_id and use memory_rename_resume to continue, never rerun the original plan blindly. Does not infer semantic memory.relations."
     )]
     async fn memory_rename(
         &self,
@@ -586,7 +664,13 @@ impl MemoryServer {
         }
         let git_sync = self.git_sync.clone();
         self.execute(request.project, false, move |store, project| {
-            let mut value = serde_json::to_value(store.write(
+            let write = if request.stamp_metadata {
+                Store::write_stamped
+            } else {
+                Store::write
+            };
+            let mut value = serde_json::to_value(write(
+                store,
                 project,
                 request.source_id,
                 &request.path,

@@ -66,3 +66,28 @@ use memory_pull within the user's authorization, then poll memory_changes using
 the previous cursor and reread relevant notes. Divergence or dirty files requires
 resolution; never discard local work to update memory. Network failure leaves
 local memory usable but its remote freshness unknown. No automatic push is implied.
+
+# Review and rename recovery
+
+Use memory_review_queue when available to collect active records with changed or
+missing local Git evidence. include_unknown=true also returns uncheckable Git
+references. The queue does not establish truth or change knowledge status. Read
+current full notes and inspect evidence before making authorized guarded updates.
+
+After a partial memory_rename, inspect its operation_id and observed file state.
+Use memory_rename_operations to discover journals without refreshing the index;
+use memory_rename_resume only to continue an authorized operation. It recognizes
+published steps by hashes and stops on conflicts. Never rerun the original plan
+blindly or overwrite intervening edits. Preserve .agent-memory-operations/ in
+backups when recovery of interrupted operations is needed.
+
+# Note metadata
+
+Prefer descriptive note filenames without date prefixes. Put known creation and
+update dates in top-level frontmatter created/updated (YYYY-MM-DD). Preserve stable
+document and Memory IDs when renaming. Do not invent a legacy note's creation date.
+Use concise tags for topics, title for a display name, and the existing memory
+kind/status/evidence/relations for knowledge semantics; dates never establish truth.
+When supported, memory_write stamp_metadata=true explicitly maintains UTC dates.
+Ordinary writes, restores and renames preserve their existing exact-content
+behavior; stamping is opt-in and may normalize YAML formatting.

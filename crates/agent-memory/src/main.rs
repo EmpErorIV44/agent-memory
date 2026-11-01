@@ -5,6 +5,7 @@ mod git_runtime;
 mod git_status;
 mod git_sync;
 mod mcp;
+mod review;
 
 use std::path::PathBuf;
 
@@ -23,6 +24,33 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Collect active knowledge whose local Git evidence changed or disappeared.
+    ReviewQueue {
+        #[arg(long)]
+        project: String,
+        /// Also include records whose Git evidence could not be checked.
+        #[arg(long)]
+        include_unknown: bool,
+        /// Owner-authorized PROJECT:ALIAS=PATH mapping (repeatable).
+        #[arg(long)]
+        evidence_repository: Vec<String>,
+    },
+    /// List durable rename operations without requiring a healthy Markdown index.
+    RenameOperations {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+    },
+    /// Resume a journaled rename, refusing to overwrite intervening edits.
+    RenameResume {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+        #[arg(long)]
+        operation_id: String,
+    },
     /// Compare Git evidence against raw local working-tree files; never fetch or run tests.
     VerifyEvidence {
         #[arg(long)]
@@ -145,6 +173,9 @@ enum Command {
         content_file: PathBuf,
         #[arg(long)]
         expected_hash: Option<String>,
+        /// Maintain frontmatter created/updated dates using the current UTC day.
+        #[arg(long)]
+        stamp_metadata: bool,
     },
     Project {
         #[command(subcommand)]
@@ -296,6 +327,46 @@ async fn main() -> Result<()> {
     };
     let mut store = Store::open(&cli.database)?;
     match cli.command {
+        Command::ReviewQueue {
+            project,
+            include_unknown,
+            evidence_repository,
+        } => {
+            let repositories = git_evidence::Repositories::new(
+                evidence_repository,
+                &std::collections::HashSet::from([project.clone()]),
+            )?;
+            store.index(&project)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&review::queue(
+                    &store,
+                    &repositories,
+                    &project,
+                    include_unknown,
+                )?)?
+            );
+        }
+        Command::RenameOperations { project, source_id } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&store.rename_operations(&project, source_id)?)?
+            );
+        }
+        Command::RenameResume {
+            project,
+            source_id,
+            operation_id,
+        } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&store.rename_resume(
+                    &project,
+                    source_id,
+                    &operation_id
+                )?)?
+            );
+        }
         Command::VerifyEvidence {
             project,
             memory_id,
@@ -493,9 +564,16 @@ async fn main() -> Result<()> {
             path,
             content_file,
             expected_hash,
+            stamp_metadata,
         } => {
             let content = std::fs::read_to_string(content_file)?;
-            let result = store.write(
+            let write = if stamp_metadata {
+                Store::write_stamped
+            } else {
+                Store::write
+            };
+            let result = write(
+                &mut store,
                 &project,
                 source_id,
                 &path,

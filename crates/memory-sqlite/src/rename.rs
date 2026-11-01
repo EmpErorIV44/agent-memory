@@ -5,17 +5,17 @@ use crate::{
 };
 use anyhow::{ensure, Context, Result};
 use rusqlite::{params, OptionalExtension, TransactionBehavior};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RenameEdit {
     pub path: String,
     pub expected_hash: String,
     pub content: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RenamePlan {
     pub project: String,
     pub source_id: i64,
@@ -30,8 +30,9 @@ pub struct RenamePlan {
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RenameResult {
+    pub operation_id: String,
     pub complete: bool,
     pub partial: bool,
     pub moved: bool,
@@ -222,7 +223,7 @@ impl Store {
         Ok(plan)
     }
 
-    /// Recompute trusted content from the current source. Client-supplied edits are never accepted.
+    /// Recompute trusted content from the current source; persist before the first mutation.
     pub fn rename_apply(
         &mut self,
         project: &str,
@@ -230,6 +231,18 @@ impl Store {
         from: &str,
         to: &str,
         expected_plan_hash: &str,
+    ) -> Result<RenameResult> {
+        self.rename_apply_inner(project, source_id, from, to, expected_plan_hash, |_| Ok(()))
+    }
+
+    fn rename_apply_inner(
+        &mut self,
+        project: &str,
+        source_id: i64,
+        from: &str,
+        to: &str,
+        expected_plan_hash: &str,
+        stage: impl FnMut(&str) -> Result<()>,
     ) -> Result<RenameResult> {
         let plan = self.rename_preview(project, source_id, from, to)?;
         ensure!(
@@ -240,82 +253,403 @@ impl Store {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let root: String = tx.query_row("SELECT s.root_path FROM sources s JOIN project_sources ps ON ps.source_id=s.id WHERE ps.project_id=?1 AND ps.source_id=?2 AND ps.can_read=1 AND ps.can_write=1",params![project_id,source_id],|row| row.get(0)).optional()?.context("source not found or write access denied")?;
-        let root = PathBuf::from(root);
+        let root = authorized_root(&tx, project_id, source_id, true)?;
         let scanned = memory_core::read_source(&root)?;
         let manifest: Vec<_> = scanned
             .iter()
-            .map(|document| {
-                (
-                    document.relative_path.clone(),
-                    document.content_hash.clone(),
-                )
-            })
+            .map(|d| (d.relative_path.clone(), d.content_hash.clone()))
             .collect();
         ensure!(
             manifest == plan.manifest,
             "rename conflict: source files changed; review a fresh preview"
         );
         destination_absent(&root, to)?;
+        let journal = RenameJournal {
+            version: 1,
+            nonce: format!(
+                "{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)?
+                    .as_nanos()
+            ),
+            plan,
+        };
+        validate_journal(&journal, project)?;
+        let operation_id = memory_core::save_operation(&root, &serde_json::to_vec(&journal)?)?;
+        tx.commit()?;
+        self.rename_resume_inner(project, source_id, &operation_id, stage)
+    }
+
+    /// List source-local operations without relying on the rebuildable document index.
+    pub fn rename_operations(&self, project: &str, source_id: i64) -> Result<Vec<RenameOperation>> {
+        let root = authorized_root(
+            &self.connection,
+            self.project_id(project)?,
+            source_id,
+            false,
+        )?;
+        let mut operations = Vec::new();
+        for operation_id in memory_core::list_operations(&root)? {
+            let journal: RenameJournal =
+                serde_json::from_slice(&memory_core::read_operation(&root, &operation_id)?)?;
+            if journal.plan.project != project {
+                continue;
+            }
+            validate_journal(&journal, project)?;
+            operations.push(RenameOperation {
+                complete: memory_core::operation_complete(&root, &operation_id)?,
+                operation_id,
+                from: journal.plan.from,
+                to: journal.plan.to,
+            });
+        }
+        Ok(operations)
+    }
+
+    /// Recognize already published bytes; never overwrite divergent current content.
+    pub fn rename_resume(
+        &mut self,
+        project: &str,
+        source_id: i64,
+        operation_id: &str,
+    ) -> Result<RenameResult> {
+        self.rename_resume_inner(project, source_id, operation_id, |_| Ok(()))
+    }
+
+    fn rename_resume_inner(
+        &mut self,
+        project: &str,
+        source_id: i64,
+        operation_id: &str,
+        mut stage: impl FnMut(&str) -> Result<()>,
+    ) -> Result<RenameResult> {
+        let project_id = self.project_id(project)?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        // Keep permissions serialized against revocation throughout publication.
+        let root = authorized_root(&tx, project_id, source_id, true)?;
+        let journal: RenameJournal =
+            serde_json::from_slice(&memory_core::read_operation(&root, operation_id)?)?;
+        validate_journal(&journal, project)?;
+        let plan = journal.plan;
         let mut result = RenameResult {
+            operation_id: operation_id.into(),
             complete: false,
             partial: false,
             moved: false,
             destination_present: false,
-            source_present: true,
+            source_present: false,
             applied: Vec::new(),
             error: None,
             indexed: false,
             index_error: None,
         };
         let operation = (|| -> Result<()> {
-            // Publish the move first, then repair referring files. A partial result keeps
-            // either a destination or both copies, and reports exactly which repairs landed.
-            memory_core::move_markdown(&root, from, to, &plan.moved_content, &plan.expected_hash)?;
-            result.moved = true;
-            result.applied.push(to.into());
-            for edit in &plan.edits {
-                match memory_core::write_markdown(
-                    &root,
-                    &edit.path,
-                    &edit.content,
-                    memory_core::WriteMode::Update {
-                        expected_hash: &edit.expected_hash,
-                    },
-                ) {
-                    Ok(_) => result.applied.push(edit.path.clone()),
-                    Err(error) => {
-                        if error
-                            .downcast_ref::<memory_core::PublishedWriteError>()
-                            .is_some()
-                        {
-                            result.applied.push(edit.path.clone());
-                        }
-                        return Err(error);
-                    }
-                }
+            if memory_core::operation_complete(&root, operation_id)? {
+                return Ok(());
             }
+            let destination_hash = memory_core::content_hash(plan.moved_content.as_bytes());
+            let source = memory_core::markdown_hash(&root, &plan.from)?;
+            let destination = memory_core::markdown_hash(&root, &plan.to)?;
+            ensure!(
+                source.as_ref().is_none_or(|h| h == &plan.expected_hash),
+                "rename conflict: source changed"
+            );
+            ensure!(
+                destination.as_ref().is_none_or(|h| h == &destination_hash),
+                "rename conflict: destination changed"
+            );
+            ensure!(
+                source.is_some() || destination.is_some(),
+                "rename conflict: both source and destination are missing"
+            );
+            // Preflight every repair before making further progress.
+            for edit in &plan.edits {
+                let current = memory_core::markdown_hash(&root, &edit.path)?;
+                let desired = memory_core::content_hash(edit.content.as_bytes());
+                ensure!(
+                    current
+                        .as_ref()
+                        .is_some_and(|h| h == &edit.expected_hash || h == &desired),
+                    "rename conflict: repair {} changed or is missing",
+                    edit.path
+                );
+            }
+            stage("journal")?;
+            if destination.is_none() {
+                memory_core::write_markdown(
+                    &root,
+                    &plan.to,
+                    &plan.moved_content,
+                    memory_core::WriteMode::Create,
+                )?;
+            }
+            stage("destination")?;
+            if source.is_some() {
+                memory_core::finish_move_markdown(
+                    &root,
+                    &plan.from,
+                    &plan.to,
+                    &plan.moved_content,
+                    &plan.expected_hash,
+                )?;
+            }
+            stage("source_removed")?;
+            for edit in &plan.edits {
+                let desired = memory_core::content_hash(edit.content.as_bytes());
+                if memory_core::markdown_hash(&root, &edit.path)?.as_ref() != Some(&desired) {
+                    memory_core::write_markdown(
+                        &root,
+                        &edit.path,
+                        &edit.content,
+                        memory_core::WriteMode::Update {
+                            expected_hash: &edit.expected_hash,
+                        },
+                    )?;
+                }
+                stage("repair")?;
+            }
+            stage("repairs_done")?;
+            memory_core::finish_operation(&root, operation_id)?;
             Ok(())
         })();
         result.complete = operation.is_ok();
         if let Err(error) = operation {
             result.error = Some(format!("{error:#}"));
-            result.partial =
-                !result.applied.is_empty() || memory_core::read_markdown(&root, to).is_ok();
         }
+        // Report observed publications even after a post-publication error.
+        result.destination_present = memory_core::markdown_hash(&root, &plan.to)
+            .ok()
+            .flatten()
+            .is_some();
+        result.source_present = memory_core::markdown_hash(&root, &plan.from)
+            .ok()
+            .flatten()
+            .is_some();
+        result.moved = result.destination_present && !result.source_present;
+        if memory_core::markdown_hash(&root, &plan.to).ok().flatten()
+            == Some(memory_core::content_hash(plan.moved_content.as_bytes()))
+        {
+            result.applied.push(plan.to.clone());
+        }
+        for edit in &plan.edits {
+            if memory_core::markdown_hash(&root, &edit.path).ok().flatten()
+                == Some(memory_core::content_hash(edit.content.as_bytes()))
+            {
+                result.applied.push(edit.path.clone());
+            }
+        }
+        result.partial = !result.complete && !result.applied.is_empty();
         if let Err(error) = tx.commit() {
             result.complete = false;
-            result.partial =
-                !result.applied.is_empty() || memory_core::read_markdown(&root, to).is_ok();
             result.error = Some(format!(
                 "rename files may be saved, but database transaction failed: {error}"
             ));
         }
+        result.partial = !result.complete && !result.applied.is_empty();
         let indexed = self.index(project);
-        result.destination_present = std::fs::symlink_metadata(root.join(to)).is_ok();
-        result.source_present = std::fs::symlink_metadata(root.join(from)).is_ok();
         result.indexed = indexed.is_ok();
         result.index_error = indexed.err().map(|error| format!("{error:#}"));
         Ok(result)
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct RenameOperation {
+    pub operation_id: String,
+    pub from: String,
+    pub to: String,
+    pub complete: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RenameJournal {
+    version: u32,
+    nonce: String,
+    plan: RenamePlan,
+}
+
+fn authorized_root(
+    connection: &rusqlite::Connection,
+    project_id: i64,
+    source_id: i64,
+    write: bool,
+) -> Result<PathBuf> {
+    let root: String = connection.query_row("SELECT s.root_path FROM sources s JOIN project_sources ps ON ps.source_id=s.id WHERE ps.project_id=?1 AND ps.source_id=?2 AND ps.can_read=1 AND (?3=0 OR ps.can_write=1)", params![project_id,source_id,write], |row| row.get(0)).optional()?.context("source not found or access denied")?;
+    Ok(PathBuf::from(root))
+}
+
+fn validate_journal(journal: &RenameJournal, project: &str) -> Result<()> {
+    ensure!(
+        journal.version == 1 && journal.plan.project == project,
+        "operation project/version mismatch"
+    );
+    let plan = &journal.plan;
+    let mut unhashed = plan.clone();
+    unhashed.plan_hash.clear();
+    ensure!(
+        memory_core::content_hash(&serde_json::to_vec(&unhashed)?) == plan.plan_hash,
+        "operation plan checksum mismatch"
+    );
+    validate(&plan.from)?;
+    validate(&plan.to)?;
+    ensure!(plan.from != plan.to, "operation paths must differ");
+    let mut paths = std::collections::HashSet::new();
+    for edit in &plan.edits {
+        validate(&edit.path)?;
+        ensure!(
+            edit.path != plan.from && edit.path != plan.to && paths.insert(&edit.path),
+            "invalid operation repair path"
+        );
+        if let Some(memory) = memory_core::parse_metadata(&edit.content)?.memory {
+            ensure!(
+                memory.project == project,
+                "operation Memory project mismatch"
+            );
+        }
+    }
+    if let Some(memory) = memory_core::parse_metadata(&plan.moved_content)?.memory {
+        ensure!(
+            memory.project == project,
+            "operation Memory project mismatch"
+        );
+    }
+    Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod recovery_tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn crash_child() -> Result<()> {
+        let Some(base) = std::env::var_os("AGENT_MEMORY_RENAME_CRASH_ROOT") else {
+            return Ok(());
+        };
+        let base = PathBuf::from(base);
+        let stage = std::env::var("AGENT_MEMORY_RENAME_CRASH_STAGE")?;
+        let mut store = Store::open(&base.join("index.sqlite"))?;
+        let source = store.sources("demo")?[0].source_id;
+        let plan = store.rename_preview("demo", source, "old.md", "sub/new.md")?;
+        store.rename_apply_inner(
+            "demo",
+            source,
+            "old.md",
+            "sub/new.md",
+            &plan.plan_hash,
+            |at| {
+                if at == stage {
+                    std::process::exit(73);
+                }
+                Ok(())
+            },
+        )?;
+        anyhow::bail!("crash hook was not reached")
+    }
+
+    fn interrupt(stage: &str) -> Result<tempfile::TempDir> {
+        let base = tempfile::tempdir()?;
+        let root = base.path().join("notes");
+        fs::create_dir(&root)?;
+        fs::write(
+            root.join("old.md"),
+            "---\nid: moved\n---\n# Old\n[Peer](a.md)\n",
+        )?;
+        fs::write(root.join("a.md"), "# A\n[Old](old.md)\n")?;
+        fs::write(root.join("b.md"), "# B\n[[old]]\n")?;
+        let store = Store::open(&base.path().join("index.sqlite"))?;
+        store.create_project("demo")?;
+        store.register_source("demo", &root, true)?;
+        drop(store);
+        let child = std::process::Command::new(std::env::current_exe()?)
+            .args([
+                "--exact",
+                "rename::recovery_tests::crash_child",
+                "--nocapture",
+            ])
+            .env("AGENT_MEMORY_RENAME_CRASH_ROOT", base.path())
+            .env("AGENT_MEMORY_RENAME_CRASH_STAGE", stage)
+            .output()?;
+        ensure!(
+            child.status.code() == Some(73),
+            "unexpected crash subprocess status {:?}: {}",
+            child.status,
+            String::from_utf8_lossy(&child.stderr)
+        );
+        Ok(base)
+    }
+
+    #[test]
+    fn abrupt_exit_at_every_publication_boundary_resumes_with_new_database() -> Result<()> {
+        for stage in [
+            "journal",
+            "destination",
+            "source_removed",
+            "repair",
+            "repairs_done",
+        ] {
+            let base = interrupt(stage)?;
+            let root = base.path().join("notes");
+            // A recreated database has independent numeric source IDs. Journal identity
+            // and authorization are resolved from the newly registered physical source.
+            let mut store = Store::open(&base.path().join("rebuilt.sqlite"))?;
+            store.create_project("other")?;
+            let extra = base.path().join("extra");
+            fs::create_dir(&extra)?;
+            store.register_source("other", &extra, false)?;
+            store.create_project("demo")?;
+            let source = store.register_source("demo", &root, true)?;
+            let operations = store.rename_operations("demo", source)?;
+            assert_eq!(operations.len(), 1);
+            assert!(!operations[0].complete);
+            assert_ne!(source, 1);
+            let id = &operations[0].operation_id;
+            let result = store.rename_resume("demo", source, id)?;
+            assert!(result.complete, "{stage}: {result:?}");
+            assert!(result.indexed, "{stage}: {result:?}");
+            assert!(!root.join("old.md").exists());
+            assert!(fs::read_to_string(root.join("sub/new.md"))?.contains("[Peer](../a.md)"));
+            assert!(fs::read_to_string(root.join("a.md"))?.contains("(sub/new.md)"));
+            assert!(fs::read_to_string(root.join("b.md"))?.contains("[[sub/new]]"));
+            let revision_count = memory_core::list_revisions(&root, "a.md")?.len();
+            assert!(store.rename_resume("demo", source, id)?.complete);
+            assert_eq!(
+                memory_core::list_revisions(&root, "a.md")?.len(),
+                revision_count
+            );
+            assert!(store.rename_operations("demo", source)?[0].complete);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn conflict_before_resume_does_not_overwrite_or_advance_other_files() -> Result<()> {
+        let base = interrupt("destination")?;
+        let root = base.path().join("notes");
+        let mut store = Store::open(&base.path().join("index.sqlite"))?;
+        let source = store.sources("demo")?[0].source_id;
+        let id = store.rename_operations("demo", source)?[0]
+            .operation_id
+            .clone();
+        fs::write(root.join("b.md"), "# Owner's conflicting edit\n")?;
+        let result = store.rename_resume("demo", source, &id)?;
+        assert!(!result.complete);
+        assert!(result.error.as_deref().unwrap().contains("conflict"));
+        assert!(root.join("old.md").exists());
+        assert_eq!(
+            fs::read_to_string(root.join("a.md"))?,
+            "# A\n[Old](old.md)\n"
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("b.md"))?,
+            "# Owner's conflicting edit\n"
+        );
+        fs::write(root.join("b.md"), "# B\n[[old]]\n")?;
+        assert!(store.rename_resume("demo", source, &id)?.complete);
+        Ok(())
     }
 }

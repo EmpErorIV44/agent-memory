@@ -626,6 +626,17 @@ mod tests {
         fs::write(local.join("secret.txt"), "do not commit").unwrap();
         fs::create_dir(local.join(".agent-memory-history")).unwrap();
         fs::write(local.join(".agent-memory-history/snapshot.md"), "hidden").unwrap();
+        fs::create_dir(local.join(".agent-memory-operations")).unwrap();
+        fs::write(
+            local.join(".agent-memory-operations/operation.json"),
+            "private plan",
+        )
+        .unwrap();
+        fs::write(
+            local.join(".agent-memory-operations/snapshot.md"),
+            "private content",
+        )
+        .unwrap();
         fs::write(local.join(".gitignore"), "ignored.md\n").unwrap();
         fs::write(local.join("ignored.md"), "ignored").unwrap();
         fs::remove_file(local.join("seed.md")).unwrap();

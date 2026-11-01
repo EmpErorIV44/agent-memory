@@ -39,7 +39,7 @@ fn doctor_never_creates_or_migrates_database() {
     assert!(!doctor(&corrupt, "demo").0);
     let incomplete = temp.path().join("incomplete.sqlite");
     let connection = rusqlite::Connection::open(&incomplete).unwrap();
-    connection.execute_batch("PRAGMA user_version=6; CREATE TABLE projects(id INTEGER PRIMARY KEY, name TEXT); INSERT INTO projects VALUES(1,'demo');").unwrap();
+    connection.execute_batch(&format!("PRAGMA user_version={}; CREATE TABLE projects(id INTEGER PRIMARY KEY, name TEXT); INSERT INTO projects VALUES(1,'demo');", memory_sqlite::SCHEMA_VERSION)).unwrap();
     drop(connection);
     let (ok, report) = doctor(&incomplete, "demo");
     assert!(!ok);

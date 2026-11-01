@@ -60,7 +60,8 @@ required = {"memory_search", "memory_get", "memory_sources", "memory_list", "mem
             "memory_get_record", "memory_history", "memory_revision_get",
             "memory_write", "memory_restore", "memory_sync_status",
             "memory_changes", "memory_freshness", "memory_pull",
-            "memory_link_diagnostics", "memory_rename", "memory_verify_evidence"}
+            "memory_link_diagnostics", "memory_rename", "memory_verify_evidence",
+            "memory_review_queue", "memory_rename_operations", "memory_rename_resume"}
 if not required <= tools:
     raise SystemExit(f"Missing tools: {required - tools}")
 search = responses[3]["result"]
