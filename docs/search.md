@@ -1,57 +1,57 @@
-# Русский поиск и фильтры
+# Russian search and filters
 
-`memory_search` использует два проектных FTS5-представления: исходное и
-нормализованное русским Snowball-стеммером (`rust-stemmers`). Это поиск по
-основам слов, а не словарь лемм или семантический поиск: формы «заметка»,
-«заметки», «заметками» сопоставляются, но нерегулярные формы и синонимы
-не гарантированы. Русские слова приводятся к нижнему регистру, ё → е;
-английские слова не стеммируются.
+`memory_search` uses two project-scoped FTS5 views: the original text and text
+normalized with the Russian Snowball stemmer (`rust-stemmers`). This matches word
+stems, rather than using a lemma dictionary or semantic search: forms such as
+«заметка», «заметки» and «заметками» match, but irregular forms and synonyms are not
+guaranteed. Russian words are lowercased and ё → е; English words are not stemmed.
 
-Например, беглая гласная в «заметки»/«заметок» может давать разные основы;
-для таких случаев используйте другую форму слова или явный OR.
+For example, the alternating vowel in «заметки»/«заметок» may produce different
+stems; use another word form or an explicit OR in such cases.
 
 ```json
 {"project":"agent-memory","query":"связи заметок","kind":"implementation","status":"implemented"}
 ```
 
-Фильтры необязательны и независимы:
+Filters are optional and independent:
 
 - kind: fact, decision, implementation, constraint.
 - status: planned, implemented, accepted, superseded, deprecated.
 
-С фильтрами возвращаются только документы со структурированной Memory своего
-проекта. Обычный Markdown без Memory по-прежнему доступен без фильтров.
-Тип или статус чужого проекта в общем источнике не влияет на выдачу.
-Неверные значения отклоняются. Статус — авторская метадата, не доказательство
-истинности записи; deprecated и superseded по умолчанию не скрываются.
+With filters, only documents containing structured Memory owned by the selected
+project are returned. Ordinary Markdown without Memory remains available without
+filters. Another project's kind or status in a shared source does not affect the
+results. Invalid values are rejected. Status is author-supplied metadata, not
+proof that a record is true; deprecated and superseded records are not hidden by
+default.
 
-Выражение FTS5 определяет допустимые результаты целиком, включая AND, OR, NOT,
-скобки, фразы, NEAR и ограничения по колонкам. Точное совпадение даёт приоритет
-в выдаче, затем используется взвешенный BM25: title/heading и summary/IDs
-имеют больший вес, чем body. Стабильная сортировка разрешает равные оценки;
-дубли одного chunk удаляются, максимум — 50 результатов. Возвращаются исходные
-фрагменты, номера строк и хеш полного документа, а не стеммированный текст.
+The FTS5 expression determines eligible results as a whole, including AND, OR, NOT,
+parentheses, phrases, NEAR and column restrictions. Exact matches rank first,
+followed by weighted BM25: title/heading and summary/IDs carry more weight than
+body. Stable sorting breaks ties; duplicate chunks are removed, with a maximum of
+50 results. Original chunks, line numbers and full-document hashes are returned,
+rather than stemmed text.
 
-Поля title, heading, body, path, stable_id, memory_id, summary доступны для
-ограничения запроса, например `heading:заметки`. Условия могут объединять
-содержимое фрагмента и метаданные в одной проектной строке индекса.
+The title, heading, body, path, stable_id, memory_id and summary fields can restrict
+queries, for example `heading:заметки`. Conditions can combine chunk content and
+metadata in a single project-scoped index row.
 
-Префиксы сохраняются. Для запроса с кириллическим префиксом, например
-`заметко*`, дополнительно требуется точное лексическое совпадение исходного
-FTS-выражения, чтобы стеммер не расширил префикс. Поэтому морфология остальных
-положительных слов такого запроса ограничена точным совпадением. NOT остаётся
-ограничением нормализованного выражения. Обычный `заметка AND config*` использует
-русский стемминг и английский префикс. Ошибочный синтаксис не исправляется молча.
+Prefixes are preserved. Queries with a Cyrillic prefix, such as `заметко*`, also
+require a literal lexical match of the original FTS expression to prevent the
+stemmer from broadening the prefix. Morphological matching of other positive words
+in such a query is therefore limited to exact matching. NOT remains a constraint
+of the normalized expression. An ordinary `заметка AND config*` uses Russian
+stemming and an English prefix. Invalid syntax is not silently corrected.
 
-SQLite v6 добавляет exact/stem представления. Миграция заполняет их из
-существующего индекса; последующая индексация обновляет их по fingerprint
-в той же транзакции, что ссылки и журнал изменений. Удаление, отзыв прав и
-изменение собственных метаданных учитываются при обновлении.
+SQLite v6 adds exact/stem views. Migration populates them from the existing index;
+subsequent indexing updates them by fingerprint in the same transaction as links
+and the change journal. Deletions, revoked permissions and changes to owned
+metadata are reflected during updates.
 
 ```sh
 agent-memory index --project agent-memory
 agent-memory search --project agent-memory --kind decision --status accepted 'заметка'
 ```
 
-CLI search читает текущий индекс; предварительный index обновляет файлы.
-MCP memory_search обновляет индекс автоматически перед поиском.
+CLI search reads the current index; running index first refreshes the files.
+MCP memory_search refreshes the index automatically before searching.

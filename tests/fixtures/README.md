@@ -1,49 +1,73 @@
-# Тестовые Markdown-источники
+# Markdown test sources
 
-Это вымышленные данные для проверки индексации и поиска v0.1. Описания функций не являются свидетельствами реализации приложения.
+These are fictional data for testing v0.1 indexing and search. Feature descriptions
+are not evidence of application implementation.
 
-## Регистрация источников
+## Source registration
 
-| Project | Source root относительно корня репозитория | Documents |
+| Project | Source root relative to the repository root | Documents |
 | --- | --- | --- |
 | banking | `tests/fixtures/banking` | `authentication.md`, `transfers.md`, `audit.md` |
 | storefront | `tests/fixtures/storefront` | `authentication.md`, `catalog.md`, `orders.md` |
 
-Регистрируются две директории отдельно. Родительская `tests/fixtures` не является источником: этот README не должен попадать в индекс. Один источник связан только со своим проектом. Итого шесть документов; число chunks зависит от выбранной стратегии разбиения по заголовкам.
+Register the two directories separately. Their parent, `tests/fixtures`, is not
+a source: this README must not enter the index. Each source is bound only to its
+own project. There are six documents in total; the chunk count depends on the
+chosen heading-based splitting strategy.
 
-У всех документов есть уникальный стабильный `id` в YAML frontmatter. ID из frontmatter принадлежит документу, а не логической Memory. Даты, время индексации и хеши вычисляются индексатором, а не берутся из данных.
+Every document has a unique stable `id` in YAML frontmatter. The frontmatter ID
+belongs to the document, not the logical Memory. Dates, indexing times and hashes
+are computed by the indexer rather than taken from the data.
 
-## Ожидания поиска
+## Search expectations
 
-Проверяются наборы документов, а не точное количество chunks, порядок ранжирования или полнотекстовый поиск по frontmatter. Поисковые маркеры присутствуют в основном тексте.
+Checks compare document sets, not exact chunk counts, ranking order or full-text
+frontmatter search. Search markers appear in the body text.
 
-| Разрешённые проекты | Запрос | Ожидаемые документы |
+| Authorized projects | Query | Expected documents |
 | --- | --- | --- |
-| banking | `OAuth2` | только `banking/authentication.md` |
-| storefront | `OAuth2` | только `storefront/authentication.md` |
-| banking, storefront (явно разрешённый глобальный поиск) | `OAuth2` | оба `authentication.md` |
-| banking (глобальный поиск разрешён только для banking) | `OAuth2` | только `banking/authentication.md` |
-| banking | `shopauthmarker` | пусто |
-| storefront | `bankauthmarker` | пусто |
-| banking | `banktransfermarker` | только `banking/transfers.md` |
-| banking | `bankauditmarker` | только `banking/audit.md` |
-| storefront | `shopcatalogmarker` | только `storefront/catalog.md` |
-| storefront | `shopordermarker` | только `storefront/orders.md` |
+| banking | `OAuth2` | only `banking/authentication.md` |
+| storefront | `OAuth2` | only `storefront/authentication.md` |
+| banking, storefront (explicitly authorized global search) | `OAuth2` | both `authentication.md` files |
+| banking (global search authorized only for banking) | `OAuth2` | only `banking/authentication.md` |
+| banking | `shopauthmarker` | none |
+| storefront | `bankauthmarker` | none |
+| banking | `banktransfermarker` | only `banking/transfers.md` |
+| banking | `bankauditmarker` | only `banking/audit.md` |
+| storefront | `shopcatalogmarker` | only `storefront/catalog.md` |
+| storefront | `shopordermarker` | only `storefront/orders.md` |
 
-Прямой get документа другого проекта также должен быть недоступен. Параметр глобального поиска сам по себе не расширяет разрешения. У результата поиска проверяются путь и корректный диапазон строк исходного файла; строки считаются с первой строки frontmatter.
+Directly getting another project's document must also be denied. The global
+search parameter does not itself expand permissions. Each search result is
+checked for its path and a valid source-file line range; numbering starts at the
+first frontmatter line.
 
-## Сценарии изменения индекса
+## Index change scenarios
 
-Каждый сценарий запускается на отдельной временной копии этих директорий и с отдельной тестовой SQLite. Оригинальные fixtures сохраняются неизменными.
+Run each scenario on a separate temporary copy of these directories and a
+separate test SQLite database. Keep the original fixtures unchanged.
 
-1. **Повторная индексация.** Индексировать оба источника дважды без изменений. Остаётся шесть документов, chunks не дублируются, хеши содержимого не меняются.
-2. **Обновление.** В копии `banking/transfers.md` заменить `banktransfermarker` на `bankupdatedmarker`, сохранив frontmatter ID. После индексации старый маркер не находится, новый находится только в banking; storefront не меняется. Документ и FTS обновляются одной транзакцией.
-3. **Удаление.** Удалить в копии `storefront/catalog.md`, затем успешно завершить сверку источника. Документ, его chunks и FTS-записи исчезают; `shopcatalogmarker` не находится. Остальные пять документов доступны.
-4. **Переименование.** Переименовать в копии `banking/transfers.md` в `banking/payments.md` без изменения содержимого и ID. После индексации доступен новый путь, старый путь отсутствует, дубликата документа нет.
-5. **Восстановление.** Закрыть соединения, удалить только временный SQLite-индекс и его временные WAL/SHM-файлы, создать схему и повторно индексировать исходные fixtures. Восстанавливаются шесть документов и ожидаемые результаты поиска. Привязки проектов/источников регистрируются заново, если они не хранятся отдельно от SQLite.
-6. **Прерывание.** Откатить транзакцию после замены chunks документа, но до завершения обновления индекса. Сохраняется предыдущая согласованная версия документа и FTS; повторный запуск успешно применяет обновление.
+1. **Reindexing.** Index both sources twice without changes. Six documents remain,
+   chunks are not duplicated and content hashes stay unchanged.
+2. **Update.** In the copy of `banking/transfers.md`, replace `banktransfermarker`
+   with `bankupdatedmarker`, preserving the frontmatter ID. After indexing, the
+   old marker is absent and the new marker is found only in banking; storefront
+   is unchanged. The document and FTS update in one transaction.
+3. **Deletion.** Delete `storefront/catalog.md` in the copy, then complete source
+   reconciliation successfully. The document, its chunks and FTS records disappear;
+   `shopcatalogmarker` is absent. The other five documents remain available.
+4. **Rename.** Rename `banking/transfers.md` to `banking/payments.md` in the copy
+   without changing content or ID. After indexing, the new path is available,
+   the old path is absent and no duplicate document exists.
+5. **Recovery.** Close connections, delete only the temporary SQLite index and
+   its temporary WAL/SHM files, create the schema and reindex the original fixtures.
+   Six documents and the expected search results are restored. Register
+   project/source bindings again unless they are stored separately from SQLite.
+6. **Interruption.** Roll back the transaction after replacing document chunks
+   but before completing the index update. The previous consistent document and
+   FTS version remains; rerunning applies the update successfully.
 
-CLI и базовый индексатор реализованы. Автоматические тесты проверяют изоляцию,
-номера строк, повторную индексацию, обновление, удаление, откат при ошибке
-и восстановление базы. Сохранение ID при переименовании остаётся задачей
-следующих этапов; сейчас переименование обрабатывается как удаление и добавление.
+The CLI and basic indexer are implemented. Automated tests cover isolation,
+line numbers, reindexing, updates, deletion, rollback on failure and database
+recovery. Stable frontmatter IDs preserve document identity across renames;
+documents without stable IDs are tracked by path.

@@ -1,92 +1,89 @@
-# Проверки безопасности в CI
+# Security checks in CI
 
-Workflow [Security](../.github/workflows/security.yml) запускается при push в
-`main`, pull request, вручную через Actions и еженедельно по понедельникам
-в 05:15 UTC. После коммита и push workflow появится в GitHub Actions;
-ручной запуск доступен после попадания workflow в основную ветку.
-Наличие конфигурации не означает, что удалённый CI уже выполнен.
+The [Security](../.github/workflows/security.yml) workflow runs on pushes to
+`main`, pull requests, manual Actions runs, and weekly on Mondays at 05:15 UTC.
+After committing and pushing, the workflow appears in GitHub Actions; manual
+execution becomes available once it reaches the default branch. The presence of
+a configuration does not mean remote CI has already run.
 
-## Исходный код: Semgrep CE
+## Source code: Semgrep CE
 
-Semgrep CE запускает локальные Rust-правила из [.semgrep.yml](../.semgrep.yml):
+Semgrep CE runs local Rust rules from [.semgrep.yml](../.semgrep.yml):
 
-- явный запуск shell-интерпретатора через `Command::new`;
-- непосредственный `format!` в выбранных вызовах SQL `prepare`/`execute`;
-- блоки `unsafe`, требующие отдельного ревью;
-- явное отключение проверки TLS-сертификатов или имени хоста.
+- Explicit shell-interpreter launches through `Command::new`.
+- Direct `format!` use in selected SQL `prepare`/`execute` calls.
+- `unsafe` blocks requiring separate review.
+- Explicitly disabled TLS certificate or hostname verification.
 
-Правила ограничены исходниками `crates/**/src/**/*.rs`.
-Workflow также проверяет их на опасных и безопасных синтетических примерах.
+Rules are restricted to `crates/**/src/**/*.rs`. The workflow also checks them
+against dangerous and safe synthetic examples.
 
 ```sh
 semgrep scan --oss-only --config .semgrep.yml --error --sarif \
   --output semgrep.sarif --metrics off --disable-version-check crates
 ```
 
-Это ограниченная проверка конкретных локальных шаблонов. Она не заменяет полный
-межпроцедурный анализ потоков данных, ручное ревью и функциональные тесты.
-Набор проверяемых конструкций определяется файлом правил; отсутствие находок
-не является доказательством безопасности кода. `--error` завершает проверку
-ошибкой при находках. SARIF сохраняется как Actions artifact `semgrep-sarif`
-(файл `semgrep.sarif`), без загрузки в GitHub Code scanning.
+This is a limited check of specific local patterns. It does not replace full
+interprocedural data-flow analysis, manual review, or functional tests. The
+rule file determines which constructs are checked; no findings does not prove
+that the code is secure. `--error` fails the scan when findings exist. SARIF is
+saved as the Actions artifact `semgrep-sarif` (file `semgrep.sarif`), without
+uploading it to GitHub Code scanning.
 
-## Зависимости: cargo audit
+## Dependencies: cargo audit
 
-`cargo audit --file Cargo.lock` сверяет зафиксированные версии зависимостей
-с актуальной базой RustSec, полученной на runner. Обнаруженные уязвимости
-приводят к неуспеху проверки; сообщения об устаревании или сопровождении нужно
-оценивать отдельно, не считая каждое предупреждение уязвимостью.
-Вывод сохраняется в artifact `cargo-audit-report` (файл `cargo-audit.txt`).
-Оба отчёта загружаются и при ошибках сканирования, если файлы были созданы,
-и хранятся 7 дней. Проверяйте также логи job: ошибка самого инструмента не
-равна успешному сканированию без находок.
+`cargo audit --file Cargo.lock` checks pinned dependency versions against the
+current RustSec database downloaded on the runner. Detected vulnerabilities
+fail the check; deprecation or maintenance notices need separate assessment,
+rather than treating every warning as a vulnerability. Output is saved in the
+`cargo-audit-report` artifact (file `cargo-audit.txt`). Both reports are uploaded
+even after scanning errors if the files were created, and retained for 7 days.
+Also check job logs: a tool failure is not a successful scan with no findings.
 
-Периодический запуск важен даже без изменений кода: новые advisories могут
-затронуть уже используемые версии из того же lockfile.
+Scheduled runs matter even without code changes: new advisories can affect
+versions already in the same lockfile.
 
-Первичная локальная проверка 2026-10-30 не нашла известных уязвимостей,
-но показала предупреждение `RUSTSEC-2024-0449`: `unsafe-libyaml 0.2.11`
-не сопровождается (транзитивно через `serde_yaml_ng`). Предупреждение не
-подавлено; переход на поддерживаемый YAML backend требует отдельной проверки
-совместимости frontmatter. Этот результат относится к проверенной ревизии
-базы advisories, последующие сканы могут дать другой результат.
+The initial local check on 2026-10-30 found no known vulnerabilities, but reported
+`RUSTSEC-2024-0449`: `unsafe-libyaml 0.2.11` is unmaintained (transitively through
+`serde_yaml_ng`). The warning is not suppressed; migration to a maintained YAML
+backend requires a separate frontmatter compatibility check. This result applies
+to the advisory database revision checked; later scans may give different results.
 
-## Доступ и ограничения
+## Access and limitations
 
-Сканирование не требует учётной записи Semgrep, service API tokens или платной
-лицензии GitHub Code Security. Отчёты доступны в Actions artifacts;
-отображение SARIF в приватном GitHub Code scanning здесь не включено.
-PR обрабатываются через `pull_request`, без `pull_request_target`, секретов
-сервисов и привилегированного выполнения кода PR. Установка инструментов и
-обновление базы advisories требуют сети runner.
+Scanning does not require a Semgrep account, service API tokens, or a paid GitHub
+Code Security license. Reports are available as Actions artifacts; SARIF display
+in private GitHub Code scanning is not enabled here. PRs use `pull_request`,
+without `pull_request_target`, service secrets, or privileged execution of PR
+code. Installing tools and updating advisory databases require runner network
+access.
 
-SBOM-проверка также выполняется отдельным временным job GitHub Actions:
-постоянный сервер, сервисная учётная запись и API secret не нужны. Это
-serverless-модель эксплуатации на runner, а не центральный дашборд компонентов.
-Минуты Actions и хранение artifacts учитываются по условиям GitHub, включая
-квоты приватных репозиториев; отсутствие своего сервера не означает отсутствие
-расхода CI-ресурсов.
+The SBOM check also runs in a separate temporary GitHub Actions job: no persistent
+server, service account, or API secret is needed. This is a serverless operating
+model on a runner, rather than a central component dashboard. Actions minutes
+and artifact storage follow GitHub's terms, including private-repository quotas;
+having no server does not eliminate CI resource consumption.
 
-CodeQL поддерживает Rust, но для приватных или внутренних репозиториев GitHub
-требует подходящий организационный план с GitHub Code Security.
-Из-за неизвестных настроек аккаунта CodeQL сейчас не выбран; условия см. в
-[документации CodeQL](https://docs.github.com/en/code-security/concepts/code-scanning/codeql/codeql-code-scanning).
+CodeQL supports Rust, but GitHub requires a qualifying organization plan with
+GitHub Code Security for private or internal repositories. CodeQL is not selected
+because the account settings are unknown; see the
+[CodeQL documentation](https://docs.github.com/en/code-security/concepts/code-scanning/codeql/codeql-code-scanning).
 
-## SBOM: Trivy без сервера
+## SBOM: Trivy without a server
 
-Третий независимый job сначала создаёт CycloneDX SBOM из исходного дерева и
-`Cargo.lock`, затем Trivy проверяет созданный SBOM на известные уязвимости.
-Это состав зависимостей исходного проекта, а не полный перечень runtime-файлов
-и компонентов развёрнутого бинарника. SBOM не заменяет Semgrep или cargo audit:
-все три проверки выполняются независимо.
+The third independent job first creates a CycloneDX SBOM from the source tree and
+`Cargo.lock`, then scans that SBOM with Trivy for known vulnerabilities. It covers
+the source project's dependencies, rather than a complete inventory of runtime
+files and components in the deployed binary. SBOM scanning does not replace
+Semgrep or cargo audit: all three checks run independently.
 
-Trivy устанавливается в версии `0.76.1` с проверкой официальной SHA-256
-контрольной суммы. База advisories загружается в локальный кэш job; для её
-обновления используются публичные запросы метаданных зависимостей, без секретов
-сервиса. Найденные уязвимости уровня HIGH или CRITICAL блокируют проверку,
-включая ещё не имеющие исправления: `--ignore-unfixed` не применяется.
+Trivy version `0.76.1` is installed after verifying its official SHA-256 checksum.
+The advisory database is downloaded to the job's local cache; updates use public
+dependency metadata requests without service secrets. HIGH or CRITICAL
+vulnerabilities fail the check, including those with no fix: `--ignore-unfixed`
+is not used.
 
-Основные команды job:
+Main job commands:
 
 ```sh
 trivy fs --format cyclonedx --output sbom.cdx.json \
@@ -95,21 +92,22 @@ trivy sbom --scanners vuln --format json --output sbom-vulnerabilities.json \
   --severity HIGH,CRITICAL --exit-code 1 sbom.cdx.json
 ```
 
-Artifacts `security-sbom` содержит `sbom.cdx.json` и `sbom-vulnerabilities.json`,
-хранится 7 дней и загружается также при ошибке, если отчёты созданы. Проверяйте
-результат job вместе с отчётом: сбой загрузки базы или парсинга SBOM не означает,
-что уязвимостей нет. Формат и возможности сканирования описаны в
-[документации Trivy SBOM](https://trivy.dev/latest/docs/target/sbom/).
+The `security-sbom` artifact contains `sbom.cdx.json` and
+`sbom-vulnerabilities.json`, is retained for 7 days, and is uploaded after failures
+if reports were created. Check the job result alongside the report: database
+download or SBOM parsing failures do not mean there are no vulnerabilities.
+Formats and scanning capabilities are described in the
+[Trivy SBOM documentation](https://trivy.dev/latest/docs/target/sbom/).
 
-## Если нужен Dependency-Track
+## If Dependency-Track is needed
 
-Если под «deeptrack» подразумевался Dependency-Track, это анализ состава
-зависимостей по SBOM (SCA), а не анализ исходного Rust-кода (SAST).
-Dependency-Track принимает CycloneDX SBOM и отслеживает риски компонентов;
-см. [описание платформы](https://docs.dependencytrack.org/).
+If "deeptrack" meant Dependency-Track, that is SBOM-based software composition
+analysis (SCA), rather than Rust source-code analysis (SAST). Dependency-Track
+accepts CycloneDX SBOMs and tracks component risks; see the
+[platform overview](https://docs.dependencytrack.org/).
 
-Его подключение остаётся отдельным шагом: нужен работающий сервер с endpoint,
-настроенный проект и API key в GitHub secret для загрузки CycloneDX SBOM.
-Сейчас выгрузка в Dependency-Track не включена, фиктивные endpoint и секреты
-не добавлены. Схема интеграции описана в
-[официальной инструкции CI/CD](https://docs.dependencytrack.org/usage/cicd/).
+Connecting it remains a separate step: it requires a running server endpoint,
+a configured project, and an API key in a GitHub secret to upload CycloneDX SBOMs.
+Uploading to Dependency-Track is not enabled, and no dummy endpoints or secrets
+have been added. The integration approach is described in the
+[official CI/CD guide](https://docs.dependencytrack.org/usage/cicd/).

@@ -1,49 +1,50 @@
-# Бинарные релизы
+# Binary releases
 
-Workflow [Release binaries](../.github/workflows/release.yml) собирает бинарники
-на нативных GitHub Actions runners. Push тега `v*` запускает
-проверки и сборку всех платформ, затем публикует GitHub Release с архивами и
-`SHA256SUMS`. На каждой платформе обязательны `cargo test --workspace --locked`;
-публикация начинается только после успеха всей матрицы проверок и сборок.
-Тег с дефисом, например `v0.1.0-alpha.1`, создаёт prerelease.
-Ручной запуск workflow в Actions собирает artifacts для проверки, без публикации
-Release, даже если выбран тег. Эта инструкция не означает, что удалённый CI
-уже выполнен.
+The [Release binaries](../.github/workflows/release.yml) workflow builds binaries
+on native GitHub Actions runners. Pushing a `v*` tag runs checks and builds for
+all platforms, then publishes a GitHub Release with archives and `SHA256SUMS`.
+Each platform must pass `cargo test --workspace --locked`; publication starts
+only after the entire check and build matrix succeeds. A tag containing a
+hyphen, such as `v0.1.0-alpha.1`, creates a prerelease.
+A manual Actions run builds artifacts for review without publishing a Release,
+even when a tag is selected. These instructions do not imply that remote CI has
+already run.
 
-## Платформы и установка
+## Platforms and installation
 
-| Платформа | Вариант |
+| Platform | Variant |
 |---|---|
-| Linux x86_64 | Сборка на Ubuntu 22.04 с glibc; динамические системные зависимости |
-| macOS ARM64 | Нативная сборка Apple Silicon; Intel macOS не включён |
-| Windows | Linux x86_64 сборка через WSL; нативного `.exe` в Release нет |
+| Linux x86_64 | Built on Ubuntu 22.04 with glibc; dynamic system dependencies |
+| macOS ARM64 | Native Apple Silicon build; Intel macOS is not included |
+| Windows | Linux x86_64 build through WSL; no native `.exe` in Releases |
 
-Linux-архив не является универсальным статическим бинарником: совместимость
-с другой системой проверяйте отдельно. Нативный Windows отложен: механизм
-сохранения истории требует исправления синхронизации директорий и успешных
-функциональных тестов записи/истории на Windows перед публикацией `.exe`.
-SQLite встроен в бинарник. Установленный Git нужен во время работы только для
-возможностей Git; обычное чтение и запись памяти не требуют Git.
+The Linux archive is not a universal static binary: verify compatibility with
+other systems separately. Native Windows support is deferred: history storage
+needs directory-synchronization fixes and passing functional write/history
+tests on Windows before an `.exe` can be published.
+SQLite is bundled into the binary. Git needs to be installed at runtime only
+for Git features; ordinary memory reads and writes do not require Git.
 
-Архивы называются `agent-memory-VERSION-TARGET.tar.gz`, где `TARGET` —
-`x86_64-unknown-linux-gnu` или `aarch64-apple-darwin`. Каждый содержит бинарник,
-README и LICENSE; рядом публикуется `.sha256`, а Release также содержит общий
-`SHA256SUMS`.
+Archives are named `agent-memory-VERSION-TARGET.tar.gz`, where `TARGET` is
+`x86_64-unknown-linux-gnu` or `aarch64-apple-darwin`. Each contains the binary,
+README, and LICENSE; a separate `.sha256` is published alongside it, and the
+Release also includes a combined `SHA256SUMS`.
 
-Скачайте архив своей платформы и `SHA256SUMS` из одного Release. Сравните SHA-256
-архива с записью в файле: `sha256sum ARCHIVE` в Linux,
-`shasum -a 256 ARCHIVE` в macOS или `Get-FileHash ARCHIVE -Algorithm SHA256`
-в PowerShell. Распакуйте бинарник, README и LICENSE. В Linux/macOS при
-необходимости выполните `chmod +x agent-memory`; добавьте каталог в `PATH`
-или укажите абсолютный путь в MCP-клиенте. В Windows распакуйте Linux-архив
-в WSL и запускайте через `wsl.exe`, используя Linux-пути к бинарнику,
-SQLite и источникам. См. [пример MCP-конфигурации](../examples/mcp-windows.json).
+Download your platform's archive and `SHA256SUMS` from the same Release. Compare
+the archive's SHA-256 with its entry: use `sha256sum ARCHIVE` on Linux,
+`shasum -a 256 ARCHIVE` on macOS, or `Get-FileHash ARCHIVE -Algorithm SHA256`
+in PowerShell. Extract the binary, README, and LICENSE. On Linux/macOS, run
+`chmod +x agent-memory` if needed; add the directory to `PATH` or use an absolute
+path in the MCP client. On Windows, extract the Linux archive inside WSL and
+launch it through `wsl.exe`, using Linux paths for the binary, SQLite, and sources.
+See the [MCP configuration example](../examples/mcp-windows.json).
 
-## Подготовка тега владельцем
+## Preparing a tag as the owner
 
-Версия в `[workspace.package]` файла `Cargo.toml` должна совпадать с тегом без
-префикса `v`. Текущей версии `0.1.0` соответствует `v0.1.0`. Для первого alpha
-сначала измените версию на `0.1.0-alpha.1`, обновите lockfile и проверьте сборку:
+The version in `[workspace.package]` in `Cargo.toml` must match the tag without
+its `v` prefix. The current version `0.1.0` corresponds to `v0.1.0`. For the first
+alpha, first change the version to `0.1.0-alpha.1`, update the lockfile, and check
+the build:
 
 ```sh
 cargo check --workspace
@@ -51,22 +52,22 @@ cargo test --workspace --locked
 git diff -- Cargo.toml Cargo.lock
 ```
 
-Сохраните проверенные изменения в коммите и отправьте ветку обычным способом.
-Когда владелец решит публиковать именно этот коммит, он создаёт и отправляет тег:
+Commit the verified changes and push the branch normally. When the owner decides
+to publish that specific commit, they create and push the tag:
 
 ```sh
 git tag v0.1.0-alpha.1
 git push origin v0.1.0-alpha.1
 ```
 
-Тег должен указывать на коммит с workflow и совпадающей версией. После push
-следите за заданиями Actions; при ошибке Release не считается готовым.
-Эти команды приведены для оператора: документация сама не создаёт тег,
-не выполняет push и не публикует релиз.
+The tag must point to a commit containing the workflow and matching version.
+Monitor Actions jobs after the push; a failed run does not produce a ready
+Release. These commands are for the operator: the documentation itself does not
+create a tag, push, or publish a release.
 
-## Использование GitHub Actions
+## GitHub Actions usage
 
-Стандартные GitHub-hosted runners бесплатны для публичных репозиториев.
-Для приватных действуют включённые квоты плана и оплата сверх них; хранение
-artifacts учитывается отдельно. Larger runners имеют отдельные условия.
-Актуальные условия см. в [документации GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+Standard GitHub-hosted runners are free for public repositories. Private
+repositories are subject to their plan's included quotas and overage charges;
+artifact storage is accounted for separately. Larger runners have separate
+terms. See the current [GitHub Actions billing documentation](https://docs.github.com/en/billing/concepts/product-billing/github-actions).

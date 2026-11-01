@@ -1,65 +1,60 @@
-# Связи заметок и обратные ссылки
+# Note links and backlinks
 
-Явные ссылки помогают агенту находить связанные решения, ограничения и результаты
-работ. Перед сохранением заметки найдите подходящие существующие знания и
-прочитайте их. Если связь обоснована, добавьте ссылку с понятным пояснением:
+Explicit links help agents find related decisions, constraints and implementation
+results. Before saving a note, find and read suitable existing knowledge. If the
+connection is supported, add a link with a clear explanation:
 
 ```markdown
-## Связанные знания
+## Related knowledge
 
-- [Решение об авторизации](../decisions/auth.md): ограничивает эту реализацию.
-- [[decisions/auth|Решение об авторизации]]
+- [Authentication decision](../decisions/auth.md): constrains this implementation.
+- [[decisions/auth|Authentication decision]]
 ```
 
-Не придумывайте отсутствующие цели и не выводите тип связи автоматически из
-совпадения слов. Не требуется добавлять ссылку в каждую заметку: уместность
-определяется содержимым и подтверждениями.
+Do not invent missing targets or infer relationship types automatically from
+matching words. Every note does not need a link: relevance depends on its content
+and evidence.
 
-## Чтение связей через MCP
+## Reading links through MCP
 
 ```json
 {"project":"agent-memory","source_id":1,"path":"implementations/auth.md","direction":"both"}
 ```
 
-Передайте этот объект в `memory_links`. Подставьте реальный источник и путь;
-хеш для этой операции не требуется.
-`direction` выбирает `both`, `outgoing` или `incoming`: исходящие ссылки,
-входящие обратные ссылки или оба направления. Ответ содержит списки `outgoing`
-и `incoming`; невыбранное направление возвращается пустым массивом.
-По умолчанию используется `both`. Обратные ссылки вычисляются по ссылкам других документов;
-редактировать целевые заметки ради отдельного списка backlinks не нужно.
+Pass this object to `memory_links`. Use an actual source and path; this operation
+does not require a hash. `direction` selects `both`, `outgoing` or `incoming`:
+outgoing links, incoming backlinks or both. The response contains `outgoing` and
+`incoming` lists; an unselected direction returns an empty array. The default is
+`both`. Backlinks are computed from other documents' links; there is no need to edit
+target notes to maintain a separate backlinks list.
 
-Элемент списка содержит `kind` (`markdown` или `wiki`), исходную цель `target`,
-номер `start_line` с единицы, `status` (`resolved`, `missing`, `ambiguous`),
-документ-источник `source` и разрешённую цель `target_document` либо `null`.
-Координаты документа включают `document_id`, `source_id`, `path`, `stable_id`
-и хеш полного документа `content_hash`; по ним можно прочитать полный Markdown
-через `memory_get`.
+Each list item contains `kind` (`markdown` or `wiki`), the original `target`, a
+one-based `start_line`, `status` (`resolved`, `missing`, `ambiguous`), the originating
+`source` document and a resolved `target_document` or `null`. Document coordinates
+include `document_id`, `source_id`, `path`, `stable_id` and full-document
+`content_hash`; use them to read complete Markdown through `memory_get`.
 
-Ссылки разрешаются только внутри того же доступного источника. Поддерживаются
-обычные относительные Markdown-ссылки и `[[wiki-ссылки]]`.
-Цель `id:stable-id` в `[Подпись](id:stable-id)` или `[[id:stable-id]]`
-ссылается на frontmatter `id` документа того же источника, а не на `memory.id`.
-Wiki-путь сначала сопоставляется с путём от корня источника или от исходной
-заметки, затем с уникальным именем файла; расширение `.md` можно опустить.
-Фрагмент `#heading`
-отбрасывается при поиске целевого документа: существование заголовка не
-проверяется. Отсутствующая или неоднозначная цель остаётся неразрешённой;
-агент не должен подставлять догадку вместо неё.
+Links resolve only within the same accessible source. Ordinary relative Markdown
+links and `[[wiki-links]]` are supported. An `id:stable-id` target in
+`[Label](id:stable-id)` or `[[id:stable-id]]` refers to the frontmatter `id` of a
+document in the same source, not its `memory.id`. Wiki paths first match a path from
+the source root or the originating note, then a unique filename; the `.md` extension
+may be omitted. A `#heading` fragment is stripped when locating the target document:
+heading existence is not checked. Missing or ambiguous targets remain unresolved;
+agents must not substitute a guess.
 
-## Документ и семантическая Memory
+## Documents and semantic Memory
 
-Markdown-ссылка соединяет документы. `memory.relations` во frontmatter — отдельная
-модель смысловых отношений: например, `implements`, `depends_on`, `supersedes`
-между устойчивыми ID Memory. Добавляйте такое отношение только если его смысл
-подтверждён, а целевой Memory ID существует. Обычная ссылка сама не доказывает,
-что одна запись реализует, отменяет или опровергает другую.
+A Markdown link connects documents. Frontmatter `memory.relations` is a separate
+model of semantic relationships, such as `implements`, `depends_on` and `supersedes`
+between stable Memory IDs. Add such a relation only when its meaning is supported
+and the target Memory ID exists. An ordinary link does not itself prove that one
+record implements, replaces or contradicts another.
 
-## Переименование
+## Renaming
 
-Frontmatter `id` сохраняет идентичность документа в индексе при переименовании,
-но это не переписывает относительные ссылки в исходном Markdown. После
-переименования проверьте связанные пути. Восстановление SQLite из Markdown
-не может восстановить старый путь, которого больше нет в исходных файлах.
-Для ссылки, которая должна переживать переименование и пересоздание индекса,
-используйте `id:stable-id`, сохраняя этот frontmatter `id` у целевого документа.
+Frontmatter `id` preserves document identity in the index when renamed, but does
+not rewrite relative links in source Markdown. Check related paths after renaming.
+Rebuilding SQLite from Markdown cannot recover an old path that no longer exists
+in source files. For a link that must survive renaming and index recreation, use
+`id:stable-id` and preserve that frontmatter `id` in the target document.

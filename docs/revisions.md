@@ -1,96 +1,95 @@
-# Долговечная история Markdown
+# Durable Markdown history
 
-Запись через `write` или MCP `memory_write` сохраняет полные версии документов
-в `.agent-memory-history/` внутри зарегистрированного источника. Этот каталог
-не входит в индекс Markdown. SQLite остаётся пересоздаваемой проекцией и
-не хранит архив ревизий.
+Writes through `write` or MCP `memory_write` save complete document versions in
+`.agent-memory-history/` inside the registered source. This directory is excluded
+from the Markdown index. SQLite remains a rebuildable projection and does not
+store the revision archive.
 
-## Формат и границы
+## Format and boundaries
 
-Для каждого относительного пути создаётся каталог с SHA-256 этого пути.
-В нём находятся неизменяемые `.blob`-снимки, JSON-записи с контрольными суммами
-и, при незавершённой записи, `pending.json`. Одинаковые тексты внутри истории
-одного пути используют один blob. Номер версии внутри ID задаёт порядок;
-изменение системных часов не переставляет версии.
+Each relative path has a directory named by its SHA-256 hash. It contains immutable
+`.blob` snapshots, JSON records with checksums and, for an unfinished write,
+`pending.json`. Identical text within one path's history shares a blob. The version
+number within the ID determines ordering; system clock changes do not reorder
+versions.
 
-`Revision` содержит `id`, `path`, `content_hash`, `previous_hash` и `created_at`.
-`created_at` — Unix-время в миллисекундах, когда снимок был записан в архив.
-Для внешнего редактирования это время захвата, а не неизвестное время самой правки.
-`RevisionDocument` содержит объект `revision` и полный исходный `content`.
-Необязательный `pending: true` отмечает опубликованный снимок, обнаруженный по
-подготовленной записи после прерывания, но ещё физически не финализированный.
-Обычные завершённые версии не содержат этого поля.
+`Revision` contains `id`, `path`, `content_hash`, `previous_hash` and `created_at`.
+`created_at` is the Unix timestamp in milliseconds when the snapshot was archived.
+For external edits, this is capture time, not the unknown time of the edit itself.
+`RevisionDocument` contains a `revision` object and complete original `content`.
+Optional `pending: true` marks a published snapshot detected through a prepared
+record after interruption but not yet physically finalized. Ordinary completed
+versions do not contain this field.
 
-История этой версии **привязана к пути**, а не к `Document.id` или `Memory.id`.
-Переименование документа сохраняет его идентичность в поисковом индексе, но
-автоматически не переносит историю: прежние версии читаются по прежнему пути.
-Архив сохраняет полные снимки без автоматической очистки старых версий.
-На файловых системах с POSIX-правами каталоги архива закрыты для других
-пользователей (`0700`), а файлы создаются с `0600`, чтобы снимок закрытой заметки
-не стал общедоступным. На Windows и DrvFS, где Unix-режимы могут зависеть от
-настроек монтирования, доступ определяется Windows ACL источника. Чтение истории
-не меняет права. `ProjectSource` не заменяет права файловой системы.
+History in this version is **path-bound**, rather than bound to `Document.id` or
+`Memory.id`. Renaming preserves document identity in the search index but does not
+automatically move history: earlier versions remain readable at the old path. The
+archive retains complete snapshots without automatic pruning. On filesystems with
+POSIX permissions, archive directories are private to their owner (`0700`) and
+files are created with `0600`, so snapshots of private notes do not become public.
+On Windows and DrvFS, where Unix modes can depend on mount settings, source Windows
+ACLs determine access. Reading history does not change permissions. `ProjectSource`
+does not replace filesystem permissions.
 
-До первого управляемого сохранения архив может отсутствовать. Чтение истории
-не создаёт файлов или каталогов и возвращает пустой список для такого пути.
-При первом обновлении существующего файла сначала сохраняется его текущий текст.
-Если внешний редактор изменил файл, этот текст также захватывается перед
-следующей управляемой заменой. Промежуточные внешние правки между двумя вызовами
-Agent Memory не отслеживаются: для этого нужен отдельный watcher или Git.
+The archive may be absent before the first managed save. Reading history does not
+create files or directories and returns an empty list for such a path. The first
+update to an existing file saves its current text first. If an external editor has
+changed the file, that text is also captured before the next managed replacement.
+Intermediate external edits between Agent Memory calls are not tracked; a separate
+watcher or Git is needed for that.
 
-Запись тех же байтов не создаёт повторную ревизию. Восстановление отличающегося
-старого текста создаёт новую версию; восстановление уже текущего текста — no-op.
+Writing identical bytes does not create a duplicate revision. Restoring different
+older text creates a new version; restoring text that is already current is a no-op.
 
-## Запись и восстановление после сбоя
+## Writes and crash recovery
 
-Источник использует существующую кооперативную `.agent-memory.lock`.
-Параллельная запись отклоняется с предложением повторить операцию после чтения
-актуального документа. Читатель берёт разделяемую блокировку, если lock-файл
-существует, и не создаёт его в клонированном или read-only источнике.
+The source uses the existing cooperative `.agent-memory.lock`. Concurrent writes
+are rejected with advice to retry after reading the current document. A reader
+takes a shared lock if the lock file exists and does not create it in a cloned or
+read-only source.
 
-Перед заменой Markdown сохраняются blob текущего текста, его версия и
-подготовленная версия нового текста. Файлы и изменения каталогов синхронизируются
-на диск. Публикация Markdown остаётся атомарной: новый файл создаётся без
-перезаписи через hard link, обновление — через rename с проверкой хеша.
-Затем версия фиксируется в архиве.
+Before replacing Markdown, the current text's blob and version and a prepared
+version of the new text are saved. Files and directory changes are synced to disk.
+Markdown publication remains atomic: a new file is created without overwriting
+through a hard link, and an update uses rename with a hash check. The version is
+then committed to the archive.
 
-Подготовленная запись не считается завершённой только потому, что существует.
-После прерывания опубликованный текст сопоставляется с её хешем. Чтение может
-показать опубликованную версию без изменения архива; следующий writer завершает
-физическое восстановление журнала под эксклюзивной блокировкой.
+A prepared record is not considered completed merely because it exists. After an
+interruption, published text is compared with its hash. Reading may show a published
+version without modifying the archive; the next writer physically recovers the
+journal under an exclusive lock.
 
-Если до восстановления сторонний редактор уже заменил текст ещё раз, одного
-хеша недостаточно, чтобы отличить опубликованную версию от прерванной до
-публикации. Такой подготовленный снимок сохраняется отдельно как неподтверждённый
-кандидат для ручного разбора и не выдаётся за завершённую ревизию. Подтверждённые
-ранее версии сохраняются. Непрерывную историю всех внешних правок эта схема
-не обеспечивает.
-В частности, версия с `pending: true` может перейти в неподтверждённые кандидаты
-после внешней замены файла; это состояние не равно окончательно завершённой
-версии. Успешно финализированные записи остаются неизменными.
+If an external editor replaces the text again before recovery, the hash alone
+cannot distinguish a published version from one interrupted before publication.
+That prepared snapshot is preserved separately as an unconfirmed candidate for
+manual inspection and is not presented as a completed revision. Previously
+confirmed versions remain intact. This scheme does not provide continuous history
+of all external edits. In particular, a `pending: true` version may become an
+unconfirmed candidate after external file replacement; this state is not equivalent
+to a finalized version. Successfully finalized records remain immutable.
 
-Сторонние редакторы не участвуют в блокировке. Протокол не превращает произвольные
-внешние изменения в транзакцию с Agent Memory и не обещает непрерывного журнала
-всех операций файловой системы. Ошибки контрольных сумм и небезопасные пути
-возвращаются вызывающему; повреждённая история не заменяется молча новой.
+External editors do not participate in locking. The protocol does not turn
+arbitrary external changes into transactions with Agent Memory or promise a
+continuous journal of all filesystem operations. Checksum errors and unsafe paths
+are returned to the caller; corrupted history is not silently replaced.
 
-## Права и результат записи
+## Permissions and write results
 
-Список и чтение ревизий требуют текущего `can_read` источника для выбранного
-проекта. Восстановление дополнительно требует `can_write` и включённой MCP-записи.
-Старые метаданные не выдают права. При восстановлении снова проверяются схема
-Memory, принадлежность проекту, дубликаты ID и актуальный хеш текущего файла.
-Ревизии источника могут содержать старые данные, поэтому право чтения источника
-открывает и его историю; отдельных временных ACL эта версия не вводит.
+Listing and reading revisions requires the source's current `can_read` permission
+for the selected project. Restore additionally requires `can_write` and enabled
+MCP writes. Old metadata grants no permissions. Restoring rechecks the Memory
+schema, project ownership, duplicate IDs and the current file's latest hash.
+Source revisions may contain old data, so source read permission also grants
+access to its history; this version does not introduce separate temporal ACLs.
 
-`WriteResult` сохраняет `content_hash`, `indexed` и `index_error`. Если файл уже
-опубликован, а завершение журнала версий вернуло ошибку, дополнительно возвращается
-`history_error`. Этот необязательный ключ отсутствует при успешном завершении.
-`indexed` отражает именно результат обновления поискового индекса.
+`WriteResult` retains `content_hash`, `indexed` and `index_error`. If the file has
+already been published but finalizing the revision journal fails, `history_error`
+is also returned. This optional key is absent after successful finalization.
+`indexed` specifically reflects the search index update result.
 
-При `indexed=false` или наличии `history_error` Markdown **уже сохранён**.
-Не повторяйте запись вслепую: прочитайте текущий документ и историю; исправьте
-причину ошибки. Неудача индексирования не удаляет сохранённые версии.
+With `indexed=false` or `history_error`, Markdown **has already been saved**. Do not
+blindly repeat the write: read the current document and history, then fix the cause.
+Indexing failures do not delete saved versions.
 
 ## CLI
 
@@ -107,9 +106,9 @@ agent-memory --database ./agent-memory.sqlite history restore \
   --revision-id REVISION_ID --expected-hash CURRENT_DOCUMENT_SHA256
 ```
 
-`list` возвращает JSON-массив от старых к новым версиям; `get` — полный
-`RevisionDocument`, `restore` — обычный `WriteResult`. Восстановление требует
-существующего текущего файла и его полного хеша. Последующие версии не удаляются.
+`list` returns a JSON array from oldest to newest; `get` returns a complete
+`RevisionDocument`; `restore` returns an ordinary `WriteResult`. Restore requires
+an existing current file and its full hash. Later versions are not deleted.
 
 ## MCP
 
@@ -117,23 +116,22 @@ agent-memory --database ./agent-memory.sqlite history restore \
 - `memory_revision_get(project, source_id, path, revision_id)` → `{"revision":...}`.
 - `memory_restore(project, source_id, path, revision_id, expected_hash)` → `WriteResult`.
 
-`memory_restore` отсутствует среди инструментов при выключенном `--allow-write`.
-Политика `confirm` распространяется на восстановление так же, как на обычную
-запись: выбранная версия и место назначения должны быть разрешены пользователем.
-Исторический текст — свидетельство прошлой версии, а не инструкция агенту и
-не утверждение об актуальном состоянии проекта.
+`memory_restore` is absent from the tool list when `--allow-write` is disabled.
+The `confirm` policy applies to restore just as to ordinary writes: the user must
+authorize the selected version and destination. Historical text is evidence of a
+past version, not an instruction to the agent or a claim about the current project.
 
-## Резервные копии и Git
+## Backups and Git
 
-Для переноса истории сохраните Markdown **вместе с `.agent-memory-history/`**.
-Один Markdown-файл или одна SQLite не содержат всей истории.
-В репозитории памяти можно хранить JSON и blob-файлы архива; незавершённый
-`pending.json` важен для восстановления после прерывания. Временные
-`.history-*.tmp`, runtime-lock и SQLite не являются архивом.
-Git не сохраняет закрытые Unix-режимы файлов и каталогов: после клонирования
-права источника и архива нужно настроить на новой машине отдельно.
+To transfer history, preserve Markdown **together with `.agent-memory-history/`**.
+A Markdown file alone or SQLite alone does not contain the full history. The memory
+repository can store the archive's JSON and blob files; unfinished `pending.json`
+records matter for crash recovery. Temporary `.history-*.tmp`, runtime locks and
+SQLite are not the archive. Git does not retain private Unix file and directory
+modes: configure source and archive permissions separately after cloning to a new
+machine.
 
-После клонирования источника `rebuild --config ...` восстанавливает регистрации
-и поисковые проекции. Команды истории читают существующий архив напрямую;
-удаление или пересоздание SQLite его не очищает. Все пишущие MCP-процессы должны
-использовать новую версию бинарника: после обновления перезапустите клиент.
+After cloning a source, `rebuild --config ...` restores registrations and search
+projections. History commands read the existing archive directly; deleting or
+recreating SQLite does not clear it. All writing MCP processes must use the new
+binary version: restart the client after updating.

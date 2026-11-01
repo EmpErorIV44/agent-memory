@@ -1,17 +1,19 @@
-# Запись и поведение агентов
+# Writes and agent behavior
 
-`memory_write` создаёт и обновляет Markdown — источник истины. Структурированные
-Memory/Evidence/Relation и долговечная история ревизий уже доступны; см.
-[структурированную память](structured-memory.md) и [историю](revisions.md).
-Автоматическая проверка Git Evidence остаётся отдельным этапом.
+`memory_write` creates and updates Markdown, the source of truth. Structured
+Memory/Evidence/Relation and durable revision history are already available;
+see [structured memory](structured-memory.md) and [history](revisions.md).
+On-demand local Git Evidence verification is available through MCP and the CLI;
+see [Git Evidence](git-evidence.md). Verification is not run automatically on
+writes or by a background watcher.
 
-## Разрешение записи
+## Enabling writes
 
-Для записи нужны оба разрешения: источник зарегистрирован с `--write` для
-конкретного проекта, а MCP запущен с `--allow-write`. Существующие подключения
-сохраняют доступ только к чтению.
+Writes require both permissions: the source must be registered with `--write`
+for the specific project, and MCP must be launched with `--allow-write`.
+Existing connections retain read-only access.
 
-Пример для уже зарегистрированных тестовых данных, из корня репозитория:
+For already registered test data, run from the repository root:
 
 ```sh
 cargo build --workspace
@@ -19,144 +21,146 @@ cargo run -p agent-memory -- source add --project banking --write ./tests/fixtur
 cargo run -p agent-memory -- source list --project banking
 ```
 
-Регистрация сообщает `source_id`. Без `--write` повторная регистрация того же
-источника снимает разрешение записи для этого проекта. Другие привязки источника
-не меняются. Запись в общий источник видна всем проектам с доступом к нему.
+Registration reports `source_id`. Re-registering the same source without
+`--write` removes write permission for that project. Other source bindings are
+unchanged. Writes to a shared source are visible to all projects with access.
 
-В настройках MCP сохраните абсолютные пути к бинарнику и SQLite, а аргументы
-запуска измените на:
+Keep absolute binary and SQLite paths in the MCP settings, and change startup
+arguments to:
 
 ```text
 --database /mnt/c/Users/user/ai-mem/agent-memory.sqlite mcp --project banking --allow-write
 ```
 
-Перезапустите MCP-подключение в клиенте. Без `--allow-write` инструмент
-`memory_write` отсутствует в списке и не может быть вызван. Права источника
-читаются из БД при каждом обращении, включая прямую запись по ID.
+Restart the client's MCP connection. Without `--allow-write`, `memory_write`
+is absent from the tool list and cannot be called. Source permissions are read
+from the database on every request, including direct writes by ID.
 
-## Когда агенту записывать
+## When agents should write
 
-Краткая политика встроена в сервер: [agent-memory-policy.md](agent-memory-policy.md).
-Она передаётся в MCP `initialize.instructions` вместе со списком разрешённых
-проектов и выбранным режимом. Следование инструкциям зависит от клиента и агента.
+A concise policy is embedded in the server:
+[agent-memory-policy.md](agent-memory-policy.md). It is supplied through MCP
+`initialize.instructions` together with the allowed projects and selected mode.
+Compliance depends on the client and agent.
 
-- `--write-policy confirm` — по умолчанию: показать черновик и место назначения
-  перед записью. Уже данное разрешение не запрашивается повторно; просьба
-  «запомни» разрешает соответствующую запись.
-  Явное постоянное предпочтение «всегда делай…» или «в следующий раз…» также
-  разрешает сохранить заметку именно об этом предпочтении без повторного
-  запроса. Это не разрешение на посторонние записи или действия.
-- `--write-policy verified` — пользователь разрешает автоматическое сохранение
-  проверенных итогов задач, принятых решений и устойчивых ограничений проекта.
+- `--write-policy confirm` is the default: show a draft and destination before
+  writing. Do not request permission already given; a request to "remember"
+  authorizes the corresponding note. An explicit standing preference such as
+  "always do..." or "next time..." also authorizes saving that specific preference
+  without asking again. It does not authorize unrelated writes or actions.
+- `--write-policy verified` means the user authorizes automatic retention of
+  verified task outcomes, accepted decisions, and enduring project constraints.
 
-Оба режима требуют поиска дубликатов, подтверждений и разделения фактов/планов.
-Секреты, догадки, временные логи и каждый промежуточный шаг не сохраняются.
-Режимы — инструкции агенту: сервер не удостоверяет человеческое согласие по
-содержимому вызова. Сервер проверяет проект, права, путь и хеш.
+Both modes require duplicate searches, supporting evidence, and separation of
+facts from plans. Do not retain secrets, guesses, transient logs, or every
+intermediate step. The modes are instructions to the agent: the server does not
+validate human consent from call content. It checks the project, permissions,
+path, and hash.
 
-## Skill для всех проектов пользователя
+## A skill for all of the user's projects
 
-Готовый переносимый skill:
-[skills/agent-memory/SKILL.md](../skills/agent-memory/SKILL.md). Он описывает чтение,
-выбор знаний для сохранения, подтверждение, работу с полным документом и конфликты.
-Автоматический выбор разрешён по умолчанию; skill не расширяет права доступа
-и не меняет настройки MCP.
+A portable skill is available at
+[skills/agent-memory/SKILL.md](../skills/agent-memory/SKILL.md). It covers reading,
+selecting knowledge to retain, confirmation, full-document updates, and conflicts.
+Automatic selection is allowed by default; the skill does not expand access
+permissions or change MCP settings.
 
-Для глобального подключения в Codex из WSL скопируйте skill в пользовательский
-каталог. Выполняйте из корня репозитория, если skill с таким именем ещё не установлен:
+For global installation in Codex from WSL, copy the skill into the user directory.
+Run from the repository root if a skill with this name is not already installed:
 
 ```sh
 mkdir -p "$HOME/.agents/skills"
 cp -R skills/agent-memory "$HOME/.agents/skills/agent-memory"
 ```
 
-Пользовательские skills доступны в разных репозиториях. Также можно установить
-skill только в `.agents/skills` выбранного репозитория. Подробности в
-[официальной документации Codex](https://learn.chatgpt.com/docs/build-skills).
-Если новый skill не появился, перезапустите Codex.
+User skills are available across repositories. Alternatively, install the skill
+only in a selected repository's `.agents/skills`. See the
+[official Codex documentation](https://learn.chatgpt.com/docs/build-skills).
+Restart Codex if the new skill does not appear.
 
-Для клиентов без поддержки skills добавьте инструкции из
-[agent-memory-agents.example.md](agent-memory-agents.example.md) в поддерживаемый
-клиентом файл правил или пользовательские инструкции. Сохраните существующие
-правила. В настройках проекта явно укажите соответствие workspace → имя проекта
-памяти; skill не угадывает его по имени директории.
+For clients without skill support, add the instructions from
+[agent-memory-agents.example.md](agent-memory-agents.example.md) to the client's
+supported rules file or user instructions. Preserve existing rules. Explicitly
+configure the workspace-to-memory-project mapping in the project's settings;
+the skill does not infer it from the directory name.
 
-## Инструменты
+## Tools
 
-В начале новой сессии агент вызывает `memory_list`, выбирает актуальные принятые
-ограничения и предпочтения, затем читает соответствующие полные документы через
-`memory_get(project, source_id, path, content_hash)`. `memory_get_record`
-возвращает структурированную запись, а не исходный Markdown. Поиск нужен для
-дополнительного контекста и заметок без структурированных метаданных;
-`memory_sources` — для прав источника и выбора места записи.
-Поиск учитывает путь, ID документа/Memory и summary. Русский поиск использует
-Snowball-стемминг и фильтры kind/status; точные совпадения ранжируются выше.
-Подробнее: [поиск](search.md).
+At the start of a new session, the agent calls `memory_list`, selects current
+accepted constraints and preferences, then reads the relevant full documents
+with `memory_get(project, source_id, path, content_hash)`. `memory_get_record`
+returns a structured record rather than source Markdown. Search provides
+additional context and notes without structured metadata; `memory_sources`
+provides source permissions and writable destinations.
+Search includes paths, document/Memory IDs, and summaries. Russian search uses
+Snowball stemming and kind/status filters; exact matches rank first.
+See [search](search.md).
 
-`memory_sources({"project":"banking"})` возвращает ID, имя и эффективное разрешение
-записи доступных источников. Без `--allow-write` все `can_write=false`.
-Этот инструмент работает и для пустого источника.
+`memory_sources({"project":"banking"})` returns the ID, name, and effective write
+permission of accessible sources. Without `--allow-write`, every `can_write` is
+`false`. This tool also works for empty sources.
 
-Для создания новой заметки передайте в `memory_write`:
+To create a note, pass the following to `memory_write`:
 
 ```json
 {
   "project": "banking",
   "source_id": 1,
   "path": "decisions/session-policy.md",
-  "content": "# Политика сессий\n\nСтатус: принятое решение.\n\nСессия действует 30 минут.\n\nОснование: решение пользователя.\n"
+  "content": "# Session policy\n\nStatus: accepted decision.\n\nA session lasts 30 minutes.\n\nEvidence: user decision.\n"
 }
 ```
 
-Отсутствие `expected_hash` означает создание нового файла: существующий файл
-не перезаписывается. Подставьте действительный ID из `memory_sources`.
+Omitting `expected_hash` means creating a new file: an existing file is never
+overwritten. Substitute the actual ID from `memory_sources`.
 
-Для изменения существующего файла:
+To update an existing file:
 
-1. Найдите заметку через `memory_list` или `memory_search`.
-2. Вызовите `memory_get` с `project`, `source_id`, `path` и `content_hash`.
-   Либо используйте режим фрагмента: `chunk_id`, `content_hash` и
-   `"include_document":true`. Поле `document.content` содержит весь исходный
-   Markdown, включая frontmatter; `document.content_hash` — хеш полного файла.
-   Обычный `chunk.body` — только фрагмент.
-3. Отредактируйте полный текст, сохранив остальные разделы.
-4. Передайте полный текст в `memory_write` и добавьте `expected_hash`, равный
-   `document.content_hash`. При несовпадении хеша обновление отклоняется.
+1. Find the note with `memory_list` or `memory_search`.
+2. Call `memory_get` with `project`, `source_id`, `path`, and `content_hash`.
+   Alternatively, use chunk mode: `chunk_id`, `content_hash`, and
+   `"include_document":true`. `document.content` contains the entire source
+   Markdown, including frontmatter; `document.content_hash` is the full file's
+   hash. Ordinary `chunk.body` is only an excerpt.
+3. Edit the full text, preserving other sections.
+4. Pass the full text to `memory_write` with `expected_hash` equal to
+   `document.content_hash`. A hash mismatch rejects the update.
 
-Ответ содержит `source_id`, `path`, `content_hash`, `indexed` и `index_error`.
-Если `indexed=false`, Markdown **уже сохранён**, а обновление SQLite не завершилось.
-Не повторяйте запись: устраните причину и выполните `index`.
+The response contains `source_id`, `path`, `content_hash`, `indexed`, and
+`index_error`. If `indexed=false`, Markdown **has already been saved**, but the
+SQLite update did not complete. Do not repeat the write: fix the cause and run
+`index`.
 
 ## CLI
 
-Подготовьте файл с полным текстом вне индексируемого источника и выполните:
+Prepare a file containing the full text outside the indexed source, then run:
 
 ```sh
 agent-memory write --project banking --source-id 1 \
   --path decisions/session-policy.md --content-file /tmp/session-policy.md
 ```
 
-Для обновления добавьте `--expected-hash` с хешем прочитанного полного документа.
-CLI тоже проверяет `can_write`; `--allow-write` относится к MCP-процессу.
+For updates, add `--expected-hash` with the hash of the full document you read.
+The CLI also checks `can_write`; `--allow-write` applies to the MCP process.
 
-## Гарантии и границы
+## Guarantees and boundaries
 
-- Разрешены непустые UTF-8 Markdown до 1 MiB, относительные пути `.md` без
-  скрытых компонентов, `..`, абсолютных путей и специальных Windows-имён.
-- Запись использует [cap-std](https://docs.rs/cap-std/latest/cap_std/fs/struct.Dir.html)
-  для операций относительно открытого источника. Символические ссылки в пути
-  отклоняются; родительские директории создаются внутри источника.
-- Файл сначала полностью записывается во временный файл рядом с назначением.
-  Обновление публикуется через rename; создание — через hard link без замены
-  существующего файла. Файловая система должна поддерживать эти операции.
-- `.agent-memory.lock` координирует Agent Memory writers даже с разными SQLite.
-  Этот служебный файл остаётся в источнике и не индексируется. Временные файлы
-  удаляются при штатном завершении, включая ошибки.
-- Хеш проверяется по текущему Markdown и повторно перед публикацией. Блокировка
-  кооперативная: внешние редакторы её не используют. Абсолютная защита от внешней
-  правки в последний момент перед rename не гарантируется.
-- Markdown и SQLite не образуют общую транзакцию. Если процесс завершится между
-  сохранением файла и обновлением индекса, следующий `index` восстановит проекцию.
-  Долговечная история и восстановление доступны через `memory_history`,
-  `memory_revision_get`, `memory_restore` и CLI `history`; восстановление
-  требует актуального хеша полного документа и создаёт новую ревизию.
+- Nonempty UTF-8 Markdown up to 1 MiB is allowed, using relative `.md` paths
+  without hidden components, `..`, absolute paths, or special Windows names.
+- Writes use [cap-std](https://docs.rs/cap-std/latest/cap_std/fs/struct.Dir.html)
+  for operations relative to an open source directory. Symbolic links in the
+  path are rejected; parent directories are created inside the source.
+- The complete file is first written to a temporary file beside its destination.
+  Updates are published through rename; new files use a hard link without
+  replacing existing files. The filesystem must support these operations.
+- `.agent-memory.lock` coordinates Agent Memory writers, even with different
+  SQLite databases. This service file remains in the source and is not indexed.
+  Temporary files are removed on normal completion, including errors.
+- The hash is checked against current Markdown and checked again before
+  publication. Locking is cooperative: external editors do not use it. Absolute
+  protection against an external edit immediately before rename is not guaranteed.
+- Markdown and SQLite do not share a transaction. If the process stops between
+  saving a file and updating the index, the next `index` rebuilds the projection.
+  Durable history and recovery are available through `memory_history`,
+  `memory_revision_get`, `memory_restore`, and CLI `history`; restoration requires
+  the current full-document hash and creates a new revision.
