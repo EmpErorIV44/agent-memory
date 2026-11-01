@@ -42,9 +42,8 @@ See the [MCP configuration example](../examples/mcp-windows.json).
 ## Preparing a tag as the owner
 
 The version in `[workspace.package]` in `Cargo.toml` must match the tag without
-its `v` prefix. The current version `0.1.0` corresponds to `v0.1.0`. For the first
-alpha, first change the version to `0.1.0-alpha.1`, update the lockfile, and check
-the build:
+its `v` prefix. Version `0.2.0` corresponds to `v0.2.0`. Update the workspace
+version and lockfile together, then check the build:
 
 ```sh
 cargo check --workspace
@@ -56,8 +55,8 @@ Commit the verified changes and push the branch normally. When the owner decides
 to publish that specific commit, they create and push the tag:
 
 ```sh
-git tag v0.1.0-alpha.1
-git push origin v0.1.0-alpha.1
+git tag -a v0.2.0 -m "Agent Memory 0.2.0"
+git push origin v0.2.0
 ```
 
 The tag must point to a commit containing the workflow and matching version.
