@@ -91,3 +91,11 @@ kind/status/evidence/relations for knowledge semantics; dates never establish tr
 When supported, memory_write stamp_metadata=true explicitly maintains UTC dates.
 Ordinary writes, restores and renames preserve their existing exact-content
 behavior; stamping is opt-in and may normalize YAML formatting.
+
+# Local daemon
+
+An optional local indexing daemon can maintain the same SQLite index. MCP refresh
+requests may delegate to it and fall back to standalone indexing when unavailable.
+Daemon status covers local observations only; it does not establish remote Git
+freshness or authorize writes. Use owner-selected projects and the same database.
+The daemon never grants extra source access, writes notes or runs Git sync.

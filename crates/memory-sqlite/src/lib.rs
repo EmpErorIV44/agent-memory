@@ -14,12 +14,14 @@ mod registry;
 mod rename;
 mod revisions;
 mod search_metadata;
+mod semantic;
 pub use memories::MemoryRecord;
 pub use memory_core::{Revision, RevisionDocument};
 pub use rename::{RenameEdit, RenameOperation, RenamePlan, RenameResult};
 pub use search_metadata::SearchOptions;
+pub use semantic::{reciprocal_rank_fusion, HybridHit, SemanticCandidate, SemanticHit};
 
-pub const SCHEMA_VERSION: i64 = 7;
+pub const SCHEMA_VERSION: i64 = 8;
 
 pub struct Store {
     connection: Connection,
@@ -67,7 +69,7 @@ pub struct IndexStats {
     pub deleted: usize,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SearchHit {
     pub stable_id: Option<String>,
     pub chunk_id: i64,
@@ -123,6 +125,10 @@ impl Store {
                     include_str!("../../../migrations/006_russian_search.sql"),
                 ),
                 (7, include_str!("../../../migrations/007_note_metadata.sql")),
+                (
+                    8,
+                    include_str!("../../../migrations/008_semantic_vectors.sql"),
+                ),
             ] {
                 if current < target {
                     // SQL files remain executable standalone; omit their outer wrapper here.

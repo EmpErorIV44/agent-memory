@@ -10,6 +10,7 @@ dependencies = [
  "cap-primitives",
  "cap-std",
  "clap",
+ "libc",
  "memory-core",
  "memory-sqlite",
  "rmcp",

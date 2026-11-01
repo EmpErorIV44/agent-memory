@@ -1,4 +1,7 @@
 mod config;
+mod daemon;
+mod daemon_ipc;
+mod daemon_watch;
 mod doctor;
 mod git_evidence;
 mod git_runtime;
@@ -24,6 +27,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Maintain the local index in the background and serve private local control requests.
+    Daemon {
+        #[command(subcommand)]
+        command: DaemonCommand,
+    },
     /// Collect active knowledge whose local Git evidence changed or disappeared.
     ReviewQueue {
         #[arg(long)]
@@ -206,6 +214,23 @@ enum ProjectCommand {
 }
 
 #[derive(Subcommand)]
+enum DaemonCommand {
+    /// Run in the foreground; use a service manager to keep it in the background.
+    Run {
+        #[arg(long, required = true)]
+        project: Vec<String>,
+        #[arg(long, default_value_t = 500, value_parser = clap::value_parser!(u64).range(20..=60000))]
+        poll_interval_ms: u64,
+        #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u64).range(1..=86400))]
+        reconcile_interval_secs: u64,
+    },
+    /// Read the live daemon status for this database without opening SQLite.
+    Status,
+    /// Ask the daemon to stop after its current operation.
+    Stop,
+}
+
+#[derive(Subcommand)]
 enum ConfigCommand {
     Export {
         /// Write a new JSON file. Omit to print JSON to stdout.
@@ -287,6 +312,45 @@ enum SourceCommand {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Command::Daemon { command } = cli.command {
+        return match command {
+            DaemonCommand::Run {
+                project,
+                poll_interval_ms,
+                reconcile_interval_secs,
+            } => {
+                daemon::run(
+                    cli.database,
+                    project,
+                    poll_interval_ms,
+                    reconcile_interval_secs,
+                )
+                .await
+            }
+            DaemonCommand::Status => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&daemon_ipc::request(
+                        &cli.database,
+                        "status",
+                        None
+                    )?)?
+                );
+                Ok(())
+            }
+            DaemonCommand::Stop => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&daemon_ipc::request(
+                        &cli.database,
+                        "stop",
+                        None
+                    )?)?
+                );
+                Ok(())
+            }
+        };
+    }
     if let Command::Doctor { project } = &cli.command {
         let report = doctor::run(&cli.database, project)?;
         println!("{}", serde_json::to_string_pretty(&report)?);
@@ -327,6 +391,7 @@ async fn main() -> Result<()> {
     };
     let mut store = Store::open(&cli.database)?;
     match cli.command {
+        Command::Daemon { .. } => unreachable!(),
         Command::ReviewQueue {
             project,
             include_unknown,

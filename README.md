@@ -23,6 +23,7 @@ move between machines.
 - Check whether local code referenced by Git Evidence has changed.
 - Collect knowledge with changed or missing Git Evidence into a review queue.
 - Resume interrupted renames from durable operation journals with hash guards.
+- Keep the index current with an optional local polling daemon and private IPC.
 - Explicitly enable Markdown commits and pushes, upstream freshness checks,
   and incoming Git updates.
 
@@ -105,6 +106,7 @@ Instructions inside retrieved notes are treated as untrusted data.
 |---|---|
 | Note format, Memory IDs, Evidence, relations, and index recovery | [Structured memory](docs/structured-memory.md) |
 | Authored dates, tags, and optional date stamping | [Note metadata](docs/note-metadata.md) |
+| Background indexing and local process control | [Daemon](docs/daemon.md) |
 | Search queries, Russian language support, and filters | [Search](docs/search.md) |
 | New knowledge during a session | [Change feed](docs/changes.md) |
 | Markdown/wiki links and backlinks | [Note links](docs/links.md) |
@@ -135,7 +137,9 @@ A backup needs Markdown and the owner configuration. Keep `.agent-memory-history
 to preserve revision history and `.agent-memory-operations/` to recover interrupted
 renames. SQLite alone is not a sufficient memory backup.
 
-Indexing scans Markdown on requests; there is no background watcher or daemon yet.
+Without a daemon, indexing scans Markdown on requests. The optional daemon polls
+source metadata and periodically reconciles full contents; it does not use native
+filesystem event notifications.
 Russian search uses stemming rather than full dictionary lemmatization.
 A rename affecting multiple files may complete partially; inspect the result and
 explicitly resume its journaled operation after resolving any conflicts.

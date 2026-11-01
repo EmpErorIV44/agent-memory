@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add a foreground local indexing daemon with metadata polling, full reconciliation,
+  private Unix IPC, singleton ownership, live status and graceful shutdown.
+- Let MCP coordinate refreshes through a running daemon, with standalone fallback.
+
 ## 0.2.0 — 2026-11-02
 
 - Add an on-demand review queue for active knowledge with changed or missing

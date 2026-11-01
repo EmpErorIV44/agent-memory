@@ -233,7 +233,7 @@ impl MemoryServer {
         let database = self.database.clone();
         let result = tokio::task::spawn_blocking(move || {
             let mut store = Store::open(&database)?;
-            if refresh {
+            if refresh && !crate::daemon::try_refresh(&database, &project) {
                 store.index(&project)?;
             }
             operation(&mut store, &project)
