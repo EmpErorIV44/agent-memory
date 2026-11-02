@@ -12,10 +12,10 @@ use std::{
 impl Store {
     /// Owner-only configuration export, including unreadable and read-only bindings.
     pub fn export_config(&self) -> Result<Config> {
+        // Every registration and permission comes from the same database snapshot.
+        let snapshot = self.connection.unchecked_transaction()?;
         let projects = {
-            let mut query = self
-                .connection
-                .prepare("SELECT id, name FROM projects ORDER BY name")?;
+            let mut query = snapshot.prepare("SELECT id, name FROM projects ORDER BY name")?;
             let rows = query.query_map([], |row| {
                 Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
             })?;
@@ -23,7 +23,7 @@ impl Store {
         };
         let mut result = Vec::new();
         for (id, name) in projects {
-            let mut query = self.connection.prepare(
+            let mut query = snapshot.prepare(
                 "SELECT s.root_path, ps.can_read, ps.can_write FROM sources s JOIN project_sources ps ON ps.source_id=s.id WHERE ps.project_id=?1 ORDER BY s.root_path")?;
             let sources = query
                 .query_map([id], |row| {
@@ -36,6 +36,7 @@ impl Store {
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             result.push(ProjectConfig { name, sources });
         }
+        snapshot.commit()?;
         Ok(Config {
             version: 1,
             projects: result,

@@ -84,6 +84,20 @@ pub struct SearchHit {
 }
 
 impl Store {
+    /// Open an existing current-schema index without creating or migrating it.
+    pub fn open_read_only(path: &Path) -> Result<Self> {
+        let connection =
+            Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .with_context(|| format!("open existing index read-only {}", path.display()))?;
+        connection.busy_timeout(Duration::from_secs(5))?;
+        let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        anyhow::ensure!(
+            version == SCHEMA_VERSION,
+            "backup requires index schema {SCHEMA_VERSION}; found {version}"
+        );
+        Ok(Self { connection })
+    }
+
     pub fn open(path: &Path) -> Result<Self> {
         let mut connection =
             Connection::open(path).with_context(|| format!("open {}", path.display()))?;

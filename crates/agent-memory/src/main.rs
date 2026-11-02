@@ -1,3 +1,4 @@
+mod backup;
 mod config;
 mod daemon;
 mod daemon_ipc;
@@ -27,6 +28,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Create or verify a portable owner backup of registered memory sources.
+    Backup {
+        #[command(subcommand)]
+        command: BackupCommand,
+    },
+    /// Restore a verified backup into a new directory; existing data is never replaced.
+    Restore {
+        #[arg(long)]
+        archive: PathBuf,
+        #[arg(long)]
+        destination: PathBuf,
+    },
     /// Maintain the local index in the background and serve private local control requests.
     Daemon {
         #[command(subcommand)]
@@ -209,6 +222,20 @@ enum Command {
 }
 
 #[derive(Subcommand)]
+enum BackupCommand {
+    /// Save Markdown, durable history, operation journals and portable registrations.
+    Create {
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Check the manifest and all payload checksums without opening an index.
+    Verify {
+        #[arg(long)]
+        archive: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
 enum ProjectCommand {
     Create { name: String },
 }
@@ -312,6 +339,24 @@ enum SourceCommand {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    // Verification and restore must work even when the original index is gone.
+    if let Command::Backup { command } = &cli.command {
+        let report = match command {
+            BackupCommand::Create { output } => backup::create(&cli.database, output)?,
+            BackupCommand::Verify { archive } => backup::verify(archive)?,
+        };
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+    if let Command::Restore {
+        archive,
+        destination,
+    } = &cli.command
+    {
+        let report = backup::restore(archive, destination)?;
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
     if let Command::Daemon { command } = cli.command {
         return match command {
             DaemonCommand::Run {
@@ -391,6 +436,7 @@ async fn main() -> Result<()> {
     };
     let mut store = Store::open(&cli.database)?;
     match cli.command {
+        Command::Backup { .. } | Command::Restore { .. } => unreachable!(),
         Command::Daemon { .. } => unreachable!(),
         Command::ReviewQueue {
             project,

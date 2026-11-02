@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Add owner CLI backup creation, checksum verification, and restoration into a
+  new directory, including Markdown, durable revisions, rename journals, and
+  portable project/source permissions. Rebuild SQLite from the restored config.
+- Export owner registrations from a consistent read transaction and support
+  opening an existing index without creating or migrating it during backup.
+- Add Make targets for development builds, tests, formatting, and lint checks.
+
 ## 0.2.1 — 2026-11-02
 
 - Add a foreground local indexing daemon with metadata polling, full reconciliation,

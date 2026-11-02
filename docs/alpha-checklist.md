@@ -79,6 +79,10 @@ left after a crash also does not prove that a process is alive.
 
 ## Backup and recovery
 
+The [backup guide](backups.md) provides `backup create`, `backup verify`, and
+restoration into a new directory. Test recovery on a separate copy before
+relying on an archive.
+
 Save Markdown, `.agent-memory-history/`, `.agent-memory-operations/`, and the
 exported owner configuration.
 Ordinary Git sync excludes hidden history and does not replace this backup.

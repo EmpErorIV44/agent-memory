@@ -39,6 +39,9 @@ From the repository root:
 cargo build --workspace --locked
 ```
 
+Alternatively, use `make build`. See [Development](#development) for the
+other Make targets.
+
 Add `target/debug` to `PATH` or use the full path to the binary.
 Create a notes directory and register it as a project source:
 
@@ -118,6 +121,7 @@ Instructions inside retrieved notes are treated as untrusted data.
 | Remote freshness and incoming updates | [Git pull](docs/git-pull.md) |
 | Installing and releasing binaries | [Releases](docs/releases.md) |
 | Installation diagnostics and acceptance checks | [Alpha checklist](docs/alpha-checklist.md) |
+| Portable snapshots, verification, and recovery | [Backups](docs/backups.md) |
 | Security scanning | [Security scanning](docs/security-scanning.md) |
 
 For command help, run `agent-memory --help` or
@@ -133,6 +137,8 @@ agent-memory rebuild --config agent-memory.config.json
 ```
 
 Export creates a new file. Refresh the configuration after changing registrations.
+For a portable snapshot of registrations, current Markdown, durable revisions,
+and rename journals, use [backup create and restore](docs/backups.md).
 A backup needs Markdown and the owner configuration. Keep `.agent-memory-history/`
 to preserve revision history and `.agent-memory-operations/` to recover interrupted
 renames. SQLite alone is not a sufficient memory backup.
@@ -148,11 +154,20 @@ Native Windows writes and history are not yet supported for release; use WSL.
 
 ## Development
 
+With GNU Make and Python 3 installed on Linux, macOS, or WSL:
+
 ```sh
-cargo test --workspace --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo fmt --all -- --check
+make help
+make check
+make release
+make run ARGS="--help"
 ```
+
+`make check` runs formatting, strict Clippy, release packaging tests, and the
+full Rust test suite. `make test` runs Rust tests sequentially and resolves the
+temporary directory path for macOS, matching the release workflow. Compilation
+defaults to one job to limit memory use; override it with `JOBS=4`. The `CARGO`
+and `PYTHON` commands can also be overridden, for example `CARGO="cargo +stable"`.
 
 The workspace has three crates: `memory-core` handles Markdown and history,
 `memory-sqlite` handles indexing and permissions, and `agent-memory` provides

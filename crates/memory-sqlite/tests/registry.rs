@@ -6,6 +6,35 @@ use memory_sqlite::{
 use std::fs;
 
 #[test]
+fn read_only_export_never_creates_migrates_or_writes_the_index() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let missing = temp.path().join("missing.sqlite");
+    assert!(Store::open_read_only(&missing).is_err());
+    assert!(!missing.exists());
+
+    let database = temp.path().join("index.sqlite");
+    let store = Store::open(&database)?;
+    store.create_project("demo")?;
+    let expected = store.export_config()?;
+    drop(store);
+    let before = fs::read(&database)?;
+    let reader = Store::open_read_only(&database)?;
+    assert_eq!(reader.export_config()?, expected);
+    assert!(reader.create_project("forbidden").is_err());
+    drop(reader);
+    assert_eq!(fs::read(&database)?, before);
+
+    let old = temp.path().join("old.sqlite");
+    let connection = rusqlite::Connection::open(&old)?;
+    connection.execute_batch("PRAGMA user_version=1;")?;
+    drop(connection);
+    let before = fs::read(&old)?;
+    assert!(Store::open_read_only(&old).is_err());
+    assert_eq!(fs::read(&old)?, before);
+    Ok(())
+}
+
+#[test]
 fn rebuild_preserves_live_identity_and_revocation_cannot_reuse_stale_ids() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let root = temp.path().join("notes");
