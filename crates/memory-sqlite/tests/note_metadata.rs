@@ -79,7 +79,7 @@ fn schema_seven_backfills_unchanged_files_on_next_scan_without_rewriting_markdow
     drop(store);
     // Model a pre-v7 index containing an already indexed, unchanged source file.
     let connection = Connection::open(&db)?;
-    connection.execute_batch("ALTER TABLE documents DROP COLUMN authored_created; ALTER TABLE documents DROP COLUMN authored_updated; ALTER TABLE documents DROP COLUMN tags_json; PRAGMA user_version=6;")?;
+    connection.execute_batch("DROP TABLE semantic_vectors; ALTER TABLE documents DROP COLUMN authored_created; ALTER TABLE documents DROP COLUMN authored_updated; ALTER TABLE documents DROP COLUMN tags_json; PRAGMA user_version=6;")?;
     drop(connection);
     let mut store = Store::open(&db)?;
     let migrated = store.get_memory("demo", "claim")?.unwrap();

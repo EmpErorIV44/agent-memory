@@ -29,7 +29,7 @@ Keep absolute binary and SQLite paths in the MCP settings, and change startup
 arguments to:
 
 ```text
---database /mnt/c/Users/user/ai-mem/agent-memory.sqlite mcp --project banking --allow-write
+--database /path/to/agent-memory.sqlite mcp --project banking --allow-write
 ```
 
 Restart the client's MCP connection. Without `--allow-write`, `memory_write`

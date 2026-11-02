@@ -82,7 +82,7 @@ jobs:
           - runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             binary: agent-memory
-          - runner: macos-14
+          - runner: macos-15
             target: aarch64-apple-darwin
             binary: agent-memory
     runs-on: ${{ matrix.runner }}
@@ -106,7 +106,8 @@ jobs:
           # tests deliberately reject symlink components, so use the real path.
           TMPDIR=$(python3 -c 'import os, tempfile; print(os.path.realpath(tempfile.gettempdir()))')
           export TMPDIR
-          cargo +stable test --workspace --locked
+          # Forking tests can briefly retain other tests' socket and lock FDs.
+          cargo +stable test --workspace --locked -- --test-threads=1
       - name: Build release binary
         env:
           TARGET: ${{ matrix.target }}

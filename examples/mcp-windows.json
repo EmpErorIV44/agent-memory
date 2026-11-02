@@ -5,8 +5,8 @@
       "args": [
         "--distribution", "Ubuntu-26.04",
         "--user", "user",
-        "--exec", "/mnt/c/users/user/ai-mem/target/debug/agent-memory",
-        "--database", "/mnt/c/Users/user/agent-memory-knowlage/agent-memory.sqlite",
+        "--exec", "/home/user/.local/bin/agent-memory",
+        "--database", "/home/user/.local/share/agent-memory/agent-memory.sqlite",
         "mcp", "--project", "agent-memory", "--allow-write", "--write-policy", "confirm"
       ]
     }

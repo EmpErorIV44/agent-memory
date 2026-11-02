@@ -1,10 +1,27 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 — 2026-11-02
 
 - Add a foreground local indexing daemon with metadata polling, full reconciliation,
   private Unix IPC, singleton ownership, live status and graceful shutdown.
 - Let MCP coordinate refreshes through a running daemon, with standalone fallback.
+- Replace raw unsafe Unix IPC calls with safe Rust APIs while preserving connection
+  deadlines, private sockets, and stale endpoint recovery.
+- Explicitly release daemon ownership locks during shutdown, including when
+  a concurrent child process temporarily inherits the descriptor.
+- Set private Unix socket permissions on macOS without opening the socket,
+  retaining symlink rejection and mode 0600.
+- Update the macOS ARM64 release runner from macOS 14 to macOS 15 and run
+  release tests sequentially to avoid cross-test descriptor inheritance races.
+
+- Add a project-scoped disposable embedding cache and semantic/hybrid ranking
+  primitives in the SQLite library (schema v8); default MCP search remains lexical.
+
+### Upgrade notes
+
+- Update all binaries sharing an index before opening schema v8. Older binaries
+  cannot read it. Markdown and owner configuration remain the recovery sources;
+  embeddings are disposable cache.
 
 ## 0.2.0 — 2026-11-02
 

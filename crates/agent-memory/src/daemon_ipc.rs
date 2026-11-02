@@ -34,12 +34,14 @@ mod platform {
         ambient_authority,
         fs::{Dir, DirBuilderExt, FileTypeExt, MetadataExt as CapMetadataExt},
     };
+    #[cfg(not(target_os = "macos"))]
+    use std::os::unix::fs::PermissionsExt;
     use std::{
         fs::File,
         io::{ErrorKind, Read, Write},
         os::unix::{
-            fs::{MetadataExt, PermissionsExt},
-            io::{AsRawFd, FromRawFd},
+            fs::MetadataExt,
+            io::AsRawFd,
             net::{UnixListener, UnixStream},
         },
         path::{Component, PathBuf},
@@ -53,8 +55,7 @@ mod platform {
     const CLIENT_IO: Duration = Duration::from_secs(5);
 
     fn euid() -> u32 {
-        // SAFETY: geteuid takes no pointers and only reads process credentials.
-        unsafe { libc::geteuid() }
+        rustix::process::geteuid().as_raw()
     }
 
     fn open_directory(path: &Path) -> Result<Dir> {
@@ -263,95 +264,58 @@ mod platform {
 
     /// Nonblocking Unix connect with a deadline, including full-backlog EAGAIN.
     fn connect(path: &Path, timeout: Duration) -> Result<UnixStream> {
-        use std::os::unix::ffi::OsStrExt;
-        let bytes = path.as_os_str().as_bytes();
-        // SAFETY: sockaddr_un is a C integer/byte structure; all-zero is valid initialization.
-        let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
-        ensure!(
-            !bytes.contains(&0) && bytes.len() < address.sun_path.len(),
-            "daemon socket path is too long or contains NUL"
-        );
-        address.sun_family = libc::AF_UNIX as libc::sa_family_t;
-        for (to, from) in address.sun_path.iter_mut().zip(bytes) {
-            *to = *from as libc::c_char;
-        }
-        let length = std::mem::offset_of!(libc::sockaddr_un, sun_path) + bytes.len() + 1;
-        #[cfg(any(
-            target_os = "macos",
-            target_os = "ios",
-            target_os = "freebsd",
-            target_os = "openbsd",
-            target_os = "netbsd"
-        ))]
-        {
-            address.sun_len = length as u8;
-        }
-        // SAFETY: socket returns a fresh owned descriptor or -1; no borrowed pointers.
-        let socket_kind = libc::SOCK_STREAM;
+        use rustix::{
+            event::{poll, PollFd, PollFlags, Timespec},
+            io::Errno,
+            net::{connect, AddressFamily, SocketAddrUnix, SocketType},
+        };
+
+        // Safe address construction validates length and rejects embedded NUL bytes.
+        let address = SocketAddrUnix::new(path).map_err(std::io::Error::from)?;
+        // OwnedFd closes on every error path; conversion transfers ownership once.
         #[cfg(target_os = "linux")]
-        let socket_kind = socket_kind | libc::SOCK_CLOEXEC;
-        let fd = unsafe { libc::socket(libc::AF_UNIX, socket_kind, 0) };
-        if fd < 0 {
-            return Err(std::io::Error::last_os_error().into());
-        }
-        // SAFETY: fd is fresh and ownership is transferred exactly once.
-        let stream = unsafe { UnixStream::from_raw_fd(fd) };
-        // SAFETY: fcntl changes only descriptor flags on this owned live socket.
-        if unsafe { libc::fcntl(stream.as_raw_fd(), libc::F_SETFD, libc::FD_CLOEXEC) } < 0 {
-            return Err(std::io::Error::last_os_error().into());
-        }
+        let fd = rustix::net::socket_with(
+            AddressFamily::UNIX,
+            SocketType::STREAM,
+            rustix::net::SocketFlags::CLOEXEC,
+            None,
+        )
+        .map_err(std::io::Error::from)?;
+        #[cfg(not(target_os = "linux"))]
+        let fd = {
+            let fd = rustix::net::socket(AddressFamily::UNIX, SocketType::STREAM, None)
+                .map_err(std::io::Error::from)?;
+            rustix::io::fcntl_setfd(&fd, rustix::io::FdFlags::CLOEXEC)
+                .map_err(std::io::Error::from)?;
+            fd
+        };
+        let stream = UnixStream::from(fd);
         stream.set_nonblocking(true)?;
         let deadline = Instant::now() + timeout;
         loop {
-            // SAFETY: address is initialized and its bounded length fits sockaddr_un.
-            let result = unsafe {
-                libc::connect(
-                    stream.as_raw_fd(),
-                    (&address as *const libc::sockaddr_un).cast(),
-                    length as libc::socklen_t,
-                )
+            let error = match connect(&stream, &address) {
+                Ok(()) | Err(Errno::ISCONN) => break,
+                Err(error) => error,
             };
-            if result == 0 {
-                break;
-            }
-            let error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::EISCONN) {
-                break;
-            }
             ensure!(Instant::now() < deadline, "daemon connect timed out");
-            match error.raw_os_error() {
-                Some(libc::EINPROGRESS) | Some(libc::EALREADY) => {
+            match error {
+                Errno::INPROGRESS | Errno::ALREADY => {
                     let remaining = deadline.saturating_duration_since(Instant::now());
-                    let mut poll = libc::pollfd {
-                        fd: stream.as_raw_fd(),
-                        events: libc::POLLOUT,
-                        revents: 0,
+                    let timeout = Timespec::try_from(remaining)?;
+                    let mut descriptors = [PollFd::new(&stream, PollFlags::OUT)];
+                    let ready = match poll(&mut descriptors, Some(&timeout)) {
+                        Ok(ready) => ready,
+                        Err(Errno::INTR) => continue,
+                        Err(error) => return Err(std::io::Error::from(error).into()),
                     };
-                    // SAFETY: poll references exactly one valid pollfd during the call.
-                    let ready = unsafe {
-                        libc::poll(
-                            &mut poll,
-                            1,
-                            remaining.as_millis().min(i32::MAX as u128) as i32,
-                        )
-                    };
-                    if ready < 0 {
-                        let error = std::io::Error::last_os_error();
-                        if error.kind() == ErrorKind::Interrupted {
-                            continue;
-                        }
-                        return Err(error.into());
-                    }
                     ensure!(ready > 0, "daemon connect timed out");
                     if let Some(error) = stream.take_error()? {
                         return Err(error.into());
                     }
                     break;
                 }
-                Some(libc::EAGAIN) | Some(libc::EINTR) => {
-                    std::thread::sleep(Duration::from_millis(5))
-                }
-                _ => return Err(error.into()),
+                Errno::AGAIN | Errno::INTR => std::thread::sleep(Duration::from_millis(5)),
+                _ => return Err(std::io::Error::from(error).into()),
             }
         }
         stream.set_nonblocking(false)?;
@@ -473,6 +437,19 @@ mod platform {
             let listener =
                 UnixListener::bind(&io_endpoint).context("bind private daemon socket")?;
             // The parent directory is 0700 before bind, so even this initial mode gap is private.
+            // Darwin cannot open a Unix socket for cap-std's descriptor chmod.
+            // fchmodat changes its mode relative to the pinned directory without
+            // opening the socket or following a substituted symlink.
+            #[cfg(target_os = "macos")]
+            rustix::fs::chmodat(
+                &anchor,
+                SOCKET,
+                rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+                rustix::fs::AtFlags::SYMLINK_NOFOLLOW,
+            )
+            .map_err(std::io::Error::from)
+            .context("set private daemon socket permissions")?;
+            #[cfg(not(target_os = "macos"))]
             directory.set_permissions(
                 SOCKET,
                 cap_std::fs::Permissions::from_std(std::fs::Permissions::from_mode(0o600)),
@@ -517,7 +494,24 @@ mod platform {
                 let _ = self.directory.remove_file(SOCKET);
             }
             // owner.lock stays in place: unlinking it would permit split-inode locks.
+            // Release explicitly: a concurrently forked child may retain the open
+            // file description until exec, so closing our fd alone can delay unlock.
+            let _ = self._lock.unlock();
         }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn dropped_lease_releases_lock_while_duplicate_descriptor_is_open() -> Result<()> {
+        let temporary = tempfile::tempdir()?;
+        let database = temporary.path().join("lease.sqlite");
+        std::fs::write(&database, b"test")?;
+        let lease = Lease::acquire(&database)?;
+        // A duplicate shares the open file description just as an inherited fd does.
+        let _inherited = lease._lock.try_clone()?;
+        drop(lease);
+        let _replacement = Lease::acquire(&database)?;
+        Ok(())
     }
 
     pub struct Connection {
@@ -558,6 +552,49 @@ mod platform {
         write_frame(&mut stream, &serde_json::to_value(request)?)?;
         read_frame(&mut stream, CLIENT_IO)
     }
+    #[cfg(test)]
+    mod connect_tests {
+        use super::*;
+
+        #[test]
+        fn connected_socket_is_blocking_and_close_on_exec() -> Result<()> {
+            let dir = tempfile::tempdir()?;
+            let path = dir.path().join("connect.sock");
+            let _listener = UnixListener::bind(&path)?;
+            let stream = connect(&path, Duration::from_secs(1))?;
+            assert!(rustix::io::fcntl_getfd(&stream)?.contains(rustix::io::FdFlags::CLOEXEC));
+            assert!(!rustix::fs::fcntl_getfl(&stream)?.contains(rustix::fs::OFlags::NONBLOCK));
+            Ok(())
+        }
+
+        #[test]
+        fn invalid_socket_paths_are_rejected() {
+            use std::os::unix::ffi::OsStrExt;
+            let nul = Path::new(std::ffi::OsStr::from_bytes(b"/tmp/socket\0suffix"));
+            assert!(connect(nul, Duration::from_secs(1)).is_err());
+            assert!(connect(Path::new(&"x".repeat(1024)), Duration::from_secs(1)).is_err());
+        }
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn full_socket_backlog_obeys_connect_deadline() -> Result<()> {
+            use rustix::net::{bind, listen, socket, AddressFamily, SocketAddrUnix, SocketType};
+            let dir = tempfile::tempdir()?;
+            let path = dir.path().join("backlog.sock");
+            let listener = socket(AddressFamily::UNIX, SocketType::STREAM, None)?;
+            bind(&listener, &SocketAddrUnix::new(&path)?)?;
+            listen(&listener, 1)?;
+            let _first = connect(&path, Duration::from_secs(1))?;
+            let _second = connect(&path, Duration::from_secs(1))?;
+            let started = Instant::now();
+            let error = connect(&path, Duration::from_millis(50)).unwrap_err();
+            assert!(error.to_string().contains("timed out"), "{error}");
+            assert!(started.elapsed() >= Duration::from_millis(50));
+            assert!(started.elapsed() < Duration::from_secs(1));
+            Ok(())
+        }
+    }
+
     #[cfg(test)]
     mod identity_tests {
         use super::*;

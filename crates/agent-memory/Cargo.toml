@@ -22,4 +22,4 @@ cap-primitives.workspace = true
 rmcp = { workspace = true, features = ["client", "transport-child-process"] }
 
 [target.'cfg(unix)'.dependencies]
-libc = "0.2"
+rustix = { version = "1", features = ["event", "fs", "net", "process"] }
