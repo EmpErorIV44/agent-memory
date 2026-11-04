@@ -49,6 +49,14 @@ The initial local check on 2026-10-30 found no known vulnerabilities, but report
 backend requires a separate frontmatter compatibility check. This result applies
 to the advisory database revision checked; later scans may give different results.
 
+On 2026-11-04, the audit reproduced the failure of Actions run `41453152212`
+(commit `4d85785`): `pulldown-cmark 0.13.5` is affected by
+[RUSTSEC-2026-0433](https://rustsec.org/advisories/RUSTSEC-2026-0433.html).
+The dependency minimum and lockfile were updated to `0.13.6`, which fixes
+quadratic parsing of nested image wikilinks. Current call sites use
+`Parser::new` without `ENABLE_WIKILINKS`; the advisory identifies that option
+as necessary for exploitation. No advisory suppression was added.
+
 ## Access and limitations
 
 Scanning does not require a Semgrep account, service API tokens, or a paid GitHub

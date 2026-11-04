@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.2.2 — 2026-11-04
+
+- Add CLI search JSON output with the MCP-compatible hits envelope and an
+  optional result limit of 1..50 in CLI/MCP (default 50).
+- Add explicit literal phrase search in CLI/MCP, escaping punctuation and
+  embedded quotes while preserving default FTS5 expression behavior.
+- Explain FTS5 syntax errors with quoting and literal-mode hints.
+- Update pulldown-cmark to 0.13.6 for RUSTSEC-2026-0433.
 - Add owner CLI backup creation, checksum verification, and restoration into a
   new directory, including Markdown, durable revisions, rename journals, and
   portable project/source permissions. Rebuild SQLite from the restored config.

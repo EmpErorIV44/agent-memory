@@ -61,6 +61,9 @@ These commands run on Linux, macOS, or WSL. The index defaults to
 to choose another path.
 
 Search returns the note path, line numbers, and matching excerpt.
+Use `search --json` for structured hits, `--limit 5` for fewer results, and
+`--literal` for a whole phrase containing punctuation or operator words.
+See [search behavior and examples](docs/search.md).
 The CLI reads the current index: run `index` after external changes.
 MCP refreshes the index before searching and reading.
 

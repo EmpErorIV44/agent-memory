@@ -55,3 +55,44 @@ agent-memory search --project agent-memory --kind decision --status accepted 'з
 
 CLI search reads the current index; running index first refreshes the files.
 MCP memory_search refreshes the index automatically before searching.
+
+Quote literal terms containing punctuation for FTS5, keeping operators outside:
+`коммит OR commit OR "Co-Authored-By"`. Double embedded quotes (`a"b` becomes
+`"a""b"`). JSON encoding is a separate layer:
+
+```json
+{"project":"agent-memory","query":"коммит OR commit OR \"Co-Authored-By\""}
+```
+
+Unquoted hyphens can produce `no such column: Authored`; quote the literal term
+and retry instead of interpreting a syntax error as no matches.
+
+## Literal input, result limits and CLI JSON
+
+FTS5 remains the default query language. For user text containing punctuation or
+operator words, set `literal: true` in MCP or pass `--literal` in the CLI. The
+server quotes the entire input as one phrase and doubles embedded quotes:
+`OR`, `NOT`, column selectors and `*` have no operator meaning in this mode.
+This is a token phrase search, not an exact byte or substring comparison;
+punctuation follows the FTS tokenizer and Russian stemming still applies.
+To combine alternatives, use default FTS5 mode and quote each literal term.
+Malformed FTS5 queries return a quoting/literal-mode hint without silently
+changing the query's meaning.
+
+Both interfaces accept a result limit from 1 through 50, defaulting to 50.
+The limit applies after filtering and ranking, so smaller requests retain the
+same leading results. Invalid limits are rejected.
+
+```sh
+agent-memory search --project agent-memory --literal --limit 5 --json 'Co-Authored-By'
+```
+
+```json
+{"project":"agent-memory","query":"Co-Authored-By","literal":true,"limit":5}
+```
+
+CLI `--json` emits the same `{"hits":[...]}` envelope as MCP, including source
+and document IDs, paths, excerpts, line numbers and full-document `content_hash`.
+No matches produce `{"hits":[]}`; errors still fail the command. Without `--json`,
+the existing human-readable CLI format is retained. CLI search still reads the
+current index; these flags do not trigger indexing.

@@ -217,6 +217,15 @@ enum Command {
         kind: Option<String>,
         #[arg(long, value_parser = ["planned", "implemented", "accepted", "superseded", "deprecated"])]
         status: Option<String>,
+        /// Maximum number of results (1–50).
+        #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u8).range(1..=50))]
+        limit: u8,
+        /// Treat the entire query as a literal token phrase; operators become ordinary text.
+        #[arg(long)]
+        literal: bool,
+        /// Print {"hits": [...]} with paths, line numbers and document hashes.
+        #[arg(long)]
+        json: bool,
         query: String,
     },
 }
@@ -734,14 +743,27 @@ async fn main() -> Result<()> {
             query,
             kind,
             status,
+            limit,
+            literal,
+            json,
         } => {
-            let options =
+            let mut options =
                 memory_sqlite::SearchOptions::from_filters(kind.as_deref(), status.as_deref())?;
-            for hit in store.search_filtered(&project, &query, &options)? {
+            options.limit = usize::from(limit);
+            options.literal = literal;
+            let hits = store.search_filtered(&project, &query, &options)?;
+            if json {
                 println!(
-                    "{}:{}-{}\n{}\n{}\n",
-                    hit.path, hit.start_line, hit.end_line, hit.heading, hit.body
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({ "hits": hits }))?
                 );
+            } else {
+                for hit in hits {
+                    println!(
+                        "{}:{}-{}\n{}\n{}\n",
+                        hit.path, hit.start_line, hit.end_line, hit.heading, hit.body
+                    );
+                }
             }
         }
     }

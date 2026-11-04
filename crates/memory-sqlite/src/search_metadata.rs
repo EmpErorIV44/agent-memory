@@ -1,16 +1,31 @@
 use crate::SearchHit;
-use anyhow::Result;
+use anyhow::{ensure, Context, Result};
 use memory_core::{MemoryKind, MemoryStatus};
 use rusqlite::{params, Connection, Transaction};
 use rust_stemmers::{Algorithm, Stemmer};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct SearchOptions {
     pub kind: Option<MemoryKind>,
     pub status: Option<MemoryStatus>,
+    /// Maximum returned lexical hits, from 1 through 50.
+    pub limit: usize,
+    /// Treat the whole query as one FTS5 phrase, rather than an expression.
+    pub literal: bool,
+}
+
+impl Default for SearchOptions {
+    fn default() -> Self {
+        Self {
+            kind: None,
+            status: None,
+            limit: 50,
+            literal: false,
+        }
+    }
 }
 
 impl SearchOptions {
@@ -22,6 +37,7 @@ impl SearchOptions {
             status: status
                 .map(|v| serde_json::from_value(serde_json::Value::String(v.into())))
                 .transpose()?,
+            ..Self::default()
         })
     }
 }
@@ -141,14 +157,43 @@ pub(crate) fn search_filtered(
     query: &str,
     options: &SearchOptions,
 ) -> Result<Vec<SearchHit>> {
-    // Evaluate the original query first so normalization never hides malformed syntax.
-    let exact = {
-        let mut statement = connection.prepare("SELECT chunk_id,bm25(search_exact_fts,6.0,1.0,8.0,3.0,4.0,4.0,5.0) FROM search_exact_fts WHERE search_exact_fts MATCH ?1 AND project_id=?2")?;
+    ensure!(
+        (1..=50).contains(&options.limit),
+        "Search limit must be between 1 and 50"
+    );
+    let literal_query;
+    let query = if options.literal {
+        literal_query = format!("\"{}\"", query.replace('"', "\"\""));
+        literal_query.as_str()
+    } else {
+        query
+    };
+    // Evaluate the original expression (or explicitly quoted phrase) first so
+    // normalization never hides malformed syntax. Never retry a changed query.
+    let mut statement = connection.prepare("SELECT chunk_id,bm25(search_exact_fts,6.0,1.0,8.0,3.0,4.0,4.0,5.0) FROM search_exact_fts WHERE search_exact_fts MATCH ?1 AND project_id=?2")?;
+    let exact = (|| -> rusqlite::Result<HashMap<i64, f64>> {
         let rows = statement.query_map(params![query, project_id], |r| {
             Ok((r.get::<_, i64>(0)?, r.get::<_, f64>(1)?))
         })?;
-        rows.collect::<rusqlite::Result<HashMap<_, _>>>()?
-    };
+        rows.collect::<rusqlite::Result<HashMap<_, _>>>()
+    })()
+    .with_context(|| "Unable to evaluate search query")
+    .map_err(|error| {
+        let is_query_syntax = error.chain().any(|cause| {
+            matches!(cause.downcast_ref::<rusqlite::Error>(),
+                Some(rusqlite::Error::SqliteFailure(_, Some(message)))
+                    if message.starts_with("fts5: syntax error")
+                        || message.starts_with("fts5: unterminated string")
+                        || message.starts_with("unterminated string")
+                        || message.starts_with("no such column:")
+                        || message.starts_with("expected integer, got "))
+        });
+        if is_query_syntax {
+            error.context("Invalid FTS5 search expression. Double-quote literal terms containing punctuation, for example \"Co-Authored-By\", and double embedded quotes. Use literal=true in MCP or --literal in CLI to search the whole input as a phrase.")
+        } else {
+            error
+        }
+    })?;
     let kind = enum_string(&options.kind)?;
     let status = enum_string(&options.status)?;
     // Only the full normalized expression determines eligibility, including NOT.
@@ -172,7 +217,7 @@ pub(crate) fn search_filtered(
         ))
     })?;
     let mut hits = rows.collect::<rusqlite::Result<Vec<_>>>()?;
-    if has_russian_prefix(query) {
+    if !options.literal && has_russian_prefix(query) {
         hits.retain(|(hit, _)| exact.contains_key(&hit.chunk_id));
     }
     hits.sort_by(|(a, ascore), (b, bscore)| {
@@ -184,5 +229,9 @@ pub(crate) fn search_filtered(
             .then_with(|| a.path.cmp(&b.path))
             .then_with(|| a.start_line.cmp(&b.start_line))
     });
-    Ok(hits.into_iter().take(50).map(|(hit, _)| hit).collect())
+    Ok(hits
+        .into_iter()
+        .take(options.limit)
+        .map(|(hit, _)| hit)
+        .collect())
 }

@@ -71,6 +71,21 @@ Search includes path, document/Memory IDs and Memory summary alongside text.
 Russian search uses Snowball stemming, with exact matches ranked first. Use
 optional kind/status filters for structured knowledge owned by this project.
 Cyrillic prefix queries such as `правил*` retain literal prefix semantics.
+Queries use FTS5 syntax. Double-quote literal terms containing punctuation such
+as hyphens, colons, dots or slashes; double any embedded `"` inside the quoted
+term. Preserve punctuation rather than deleting it. Keep intentional operators
+outside the quotes: `коммит OR commit OR "Co-Authored-By"`.
+In JSON this is `{"query":"коммит OR commit OR \"Co-Authored-By\""}`;
+JSON escaping alone does not quote a term for FTS5. Literal `a"b` becomes
+FTS5 `"a""b"`. Use `*` outside quotes only for an intentional prefix query,
+for example `"config"*`; quote whole paths such as `"apps/foo.md"`.
+If search returns `no such column` or an FTS5 `syntax error`, correct the
+literal-term quoting and retry; do not treat the error as an empty result.
+When supported, use `literal: true` for a whole user-supplied phrase or path
+instead of manually quoting it. Operators then become text; this is a token
+phrase search with Russian stemming, not a byte substring match. For alternatives
+such as `коммит OR commit OR "Co-Authored-By"`, retain default FTS5 mode.
+Use `limit` (1..50, default 50) to request only the results needed.
 Use memory_link_diagnostics to inspect missing, ambiguous and stale-path links.
 For renames, request memory_rename preview first, review changed files, then
 apply its plan_hash as expected_plan_hash within user authorization. On partial
