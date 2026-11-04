@@ -133,6 +133,16 @@ extra edit to the target note. Relative Markdown and wiki links connect document
 `memory.relations` express separate semantic relationships between actual Memory
 IDs. Use a relation kind only when the evidence supports that meaning.
 
+## Note style
+
+Prefer concise, connected paragraphs that explain the result or decision, its
+reasoning and supporting evidence. Use lists when they make steps, independent
+items or checks easier to scan; avoid turning every sentence into a bullet or
+imposing a fixed template on every note. Let the content determine the structure.
+Follow the user's requested format and preserve the established style of existing
+notes when updating them; do not reformat unrelated content. This guidance applies
+to narrative Markdown, not structured YAML metadata.
+
 ## Save
 
 1. Use `memory_sources` for the chosen project and select a source with
