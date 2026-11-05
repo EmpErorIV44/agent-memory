@@ -28,6 +28,19 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Assemble task context within a conservative token budget (JSON).
+    Context {
+        #[arg(long)]
+        project: String,
+        #[arg(long, default_value_t = 4000)]
+        max_tokens: usize,
+        task: String,
+    },
+    /// Diagnose explicit contradictions, supersession conflicts and relation cycles.
+    Contradictions {
+        #[arg(long)]
+        project: String,
+    },
     /// Create or verify a portable owner backup of registered memory sources.
     Backup {
         #[command(subcommand)]
@@ -445,6 +458,24 @@ async fn main() -> Result<()> {
     };
     let mut store = Store::open(&cli.database)?;
     match cli.command {
+        Command::Context {
+            project,
+            task,
+            max_tokens,
+        } => {
+            store.index(&project)?;
+            println!(
+                "{}",
+                serde_json::to_string(&store.task_context(&project, &task, max_tokens)?)?
+            );
+        }
+        Command::Contradictions { project } => {
+            store.index(&project)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&store.contradiction_diagnostics(&project)?)?
+            );
+        }
         Command::Backup { .. } | Command::Restore { .. } => unreachable!(),
         Command::Daemon { .. } => unreachable!(),
         Command::ReviewQueue {

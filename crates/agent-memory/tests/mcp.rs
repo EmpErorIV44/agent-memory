@@ -61,6 +61,8 @@ async fn scenario() -> Result<()> {
         names,
         [
             "memory_changes",
+            "memory_context",
+            "memory_contradictions",
             "memory_freshness",
             "memory_get",
             "memory_get_record",

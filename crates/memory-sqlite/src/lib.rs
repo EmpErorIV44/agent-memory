@@ -5,6 +5,7 @@ use std::time::Duration;
 
 mod changes;
 pub mod config;
+mod context;
 mod index;
 mod links;
 pub use changes::{Change, Changes};

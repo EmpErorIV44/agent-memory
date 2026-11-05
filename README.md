@@ -10,6 +10,8 @@ move between machines.
 
 ## Features
 
+- Assemble task context with source hashes, conservative token budgets, and
+  explicit relation conflict diagnostics.
 - Search text and metadata with Russian stemming, ranking, and filters by
   knowledge kind and status.
 - Isolate memory by project and enforce source read and write permissions.
@@ -113,6 +115,7 @@ Instructions inside retrieved notes are treated as untrusted data.
 | Note format, Memory IDs, Evidence, relations, and index recovery | [Structured memory](docs/structured-memory.md) |
 | Authored dates, tags, and optional date stamping | [Note metadata](docs/note-metadata.md) |
 | Background indexing and local process control | [Daemon](docs/daemon.md) |
+| Task context and explicit contradiction diagnostics | [Task context](docs/task-context.md) |
 | Search queries, Russian language support, and filters | [Search](docs/search.md) |
 | New knowledge during a session | [Change feed](docs/changes.md) |
 | Markdown/wiki links and backlinks | [Note links](docs/links.md) |

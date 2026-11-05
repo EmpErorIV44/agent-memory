@@ -1,6 +1,13 @@
 # Agent Memory
 
-When Agent Memory MCP is connected, apply the `agent-memory` skill if available.
+For project work with a configured Agent Memory project, use connected Agent
+Memory alongside any task-specific skill, including an explicitly requested skill.
+Apply the `agent-memory` skill if available; its selection is not a prerequisite
+for recalling project knowledge through the MCP tools. A task skill does not
+replace memory recall or the normal retention decision.
+Bootstrap once per session and project, then retrieve additional context when
+the task scope changes. Do not repeat bootstrap on every skill invocation.
+Unrelated conversation without relevant project knowledge needs no memory calls.
 Use the workspace's explicitly configured project; ask when the mapping is unclear.
 At the first connection in each new session, before substantive project work,
 start with memory_list for accepted constraints and preferences, then read the

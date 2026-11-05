@@ -1,6 +1,6 @@
 ---
 name: agent-memory
-description: Use connected Agent Memory MCP to recall project decisions and constraints, and retain verified results after meaningful project work. Applies when Agent Memory is available and project knowledge is relevant, including explicit requests to remember something.
+description: Use connected Agent Memory MCP to recall project decisions and constraints, and retain verified results after meaningful project work. Applies when Agent Memory is available and project knowledge is relevant, including explicit requests to remember something. Use alongside other task skills when project knowledge is relevant.
 ---
 
 # Agent Memory
@@ -12,6 +12,25 @@ by stable logical Memory ID, including status, evidence and accessible relations
 Memory IDs, document IDs and search chunk IDs are distinct.
 Follow the server's allowed projects and write policy. Installing this skill
 does not grant write permission or authorize unrelated actions.
+
+## Working alongside other skills
+
+Use Agent Memory together with the skill that performs the task. Selecting or
+explicitly invoking another skill does not skip project-memory recall or the
+normal retention decision. For example, a website, document or review workflow
+still needs relevant project constraints and accepted decisions before its
+substantive work. Preserve the task skill's workflow and requested output format.
+
+Bootstrap once per session and project, not on every skill invocation. When a
+skill introduces a new project scope or a decision depends on knowledge not yet
+loaded, retrieve that context before acting. Before the final answer, consider
+retaining verified results under the existing write policy and authorization.
+Unrelated conversation without relevant project knowledge does not need recall.
+
+A skill's body is loaded only when selected. To make recall a standing project
+workflow, also add a short project-memory rule to the
+client's always-loaded instructions, such as Codex global/project `AGENTS.md`. The skill
+alone cannot enforce tool calls or control another skill's execution.
 
 ## First connection and new sessions
 
@@ -44,6 +63,19 @@ that does not depend on it; do not claim the bootstrap is complete.
 destination, not as a mandatory first read.
 
 ## Recall
+
+When available, `memory_context(project, task, max_tokens)` assembles accepted
+constraints, lexical task matches and one-hop active related knowledge. Task is
+plain text; the default 4000 budget conservatively counts UTF-8 bytes of its JSON
+payload rather than model-specific tokens. Check `omitted_count` and
+`excerpt_truncated`; snippets do not replace baseline bootstrap or full-note reads.
+Source coordinates and hashes can be passed to `memory_get` for complete notes.
+The context does not verify evidence or establish remote freshness.
+Use `memory_contradictions` to inspect explicit active contradiction pairs,
+active supersession chain endpoints and relation cycles. Read the cited notes and
+evidence before resolving anything; the report does not infer truth from prose,
+change statuses or grant permission to write. A zero count is not proof of
+semantic consistency.
 
 For Git-backed knowledge, local indexing is insufficient: another machine may
 have pushed newer notes. Use memory_freshness(fetch=true) at session start when

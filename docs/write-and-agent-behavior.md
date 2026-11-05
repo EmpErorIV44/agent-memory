@@ -78,11 +78,36 @@ only in a selected repository's `.agents/skills`. See the
 [official Codex documentation](https://learn.chatgpt.com/docs/build-skills).
 Restart Codex if the new skill does not appear.
 
-For clients without skill support, add the instructions from
-[agent-memory-agents.example.md](agent-memory-agents.example.md) to the client's
-supported rules file or user instructions. Preserve existing rules. Explicitly
-configure the workspace-to-memory-project mapping in the project's settings;
-the skill does not infer it from the directory name.
+## Keep recall active alongside other skills
+
+Skills are selected for a task; their complete instructions are loaded when
+selected. A discoverable memory skill alone therefore does not establish an
+always-loaded recall rule. This can leave project memory unused when another
+skill owns the workflow. MCP `initialize.instructions` provides another guidance
+channel, but compliance still depends on the client and agent.
+
+For Codex, add the short instructions from
+[agent-memory-agents.example.md](agent-memory-agents.example.md) to the global
+`~/.codex/AGENTS.md` (or `$CODEX_HOME/AGENTS.md` for a custom profile), preserving
+existing instructions. This applies across repositories. Add an explicit
+workspace-to-memory-project mapping in the repository's own `AGENTS.md`; the
+allowed-project list and directory name alone are not a mapping. This repository
+uses `agent-memory`.
+
+For other clients, place the same rule in their supported always-loaded rules or
+user-instructions mechanism. This applies with or without skill support. Keep
+specialist skills focused on their own work rather than editing every skill to
+repeat the memory policy.
+
+The rule combines recall with the task skill: bootstrap once per session/project,
+retrieve context when scope changes, and consider verified retention before the
+final response under the existing write policy. It does not require memory calls
+for unrelated conversation or grant extra source access. Restart the Codex session
+after changing global/project instructions. The MCP server's embedded policy also
+requires a rebuilt binary and a restarted connection to update.
+
+Official documentation: [AGENTS.md discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+and [skill loading](https://learn.chatgpt.com/docs/build-skills).
 
 ## Tools
 
@@ -95,6 +120,12 @@ provides source permissions and writable destinations.
 Search includes paths, document/Memory IDs, and summaries. Russian search uses
 Snowball stemming and kind/status filters; exact matches rank first.
 See [search](search.md).
+
+For task-focused retrieval, `memory_context` accepts plain task text and a
+conservative JSON payload budget. `memory_contradictions` diagnoses explicit
+relations and supersession chains without changing notes. See
+[task context and contradiction diagnostics](task-context.md) for selection,
+budget limits and review behavior.
 
 `memory_sources({"project":"banking"})` returns the ID, name, and effective write
 permission of accessible sources. Without `--allow-write`, every `can_write` is

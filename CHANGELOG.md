@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Clarify memory recall alongside other skills in the portable skill, MCP policy
+  and always-loaded instruction template; document global Codex AGENTS.md setup
+  and add an explicit memory-project mapping for this repository.
+
+- Add read-only CLI `context` and MCP `memory_context`: accepted constraints,
+  lexical task matches and one-hop active relations, source hashes, bounded
+  excerpts and a conservative UTF-8 byte budget for the JSON context payload.
+- Add CLI `contradictions` and MCP `memory_contradictions` for explicit active
+  contradictions, active endpoints of supersession chains and dependency or
+  supersession cycles, without changing knowledge statuses.
+
 ## 0.2.2 — 2026-11-04
 
 - Add CLI search JSON output with the MCP-compatible hits envelope and an

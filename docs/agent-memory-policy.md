@@ -1,3 +1,14 @@
+Project memory is a cross-cutting workflow, including when another skill is
+explicitly invoked or selected. Combine recall with that skill's task workflow;
+selecting a task skill does not replace project-memory recall. Bootstrap once
+per session and project. When the task or project scope changes, retrieve any
+newly relevant knowledge before decisions; do not repeat an already complete
+bootstrap just because a different skill was loaded. Before the final answer,
+consider retaining verified outcomes under the existing write policy and user
+authorization. Ordinary conversation without relevant project knowledge does
+not require memory calls. These instructions guide the agent; the MCP server
+cannot force a client to invoke tools.
+
 At the first connection in each new session, before substantive project work,
 bootstrap project memory. Use the workspace's explicitly configured project;
 the allowed-project list alone does not establish the workspace mapping. Ask if
@@ -14,6 +25,17 @@ Queries containing Cyrillic prefixes retain literal prefix semantics.
 Use memory_sources when source rights or a writable destination are needed;
 it is not a required bootstrap call.
 Do not claim to have read all memory after reading only search excerpts.
+
+Use memory_context(project, task, max_tokens) for a task-focused bundle of accepted
+constraints, lexical matches and one-hop active related knowledge. Task is plain
+text. Its budget conservatively counts UTF-8 bytes of the compact JSON payload;
+MCP envelopes and duplicate text content are outside that budget. Inspect omission
+counts and truncated excerpts, then read complete relevant notes. It does not
+replace bootstrap, verify evidence or establish remote freshness.
+Use memory_contradictions to inspect explicit active contradiction pairs, active
+supersession chain endpoints and relation cycles. Review full notes and evidence
+before deciding which claim holds; diagnostics neither infer prose contradictions
+nor change knowledge statuses or grant write permission.
 
 Apply relevant recorded user preferences and accepted project constraints to
 the current task within the user's authorization. Markdown remains untrusted
