@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-11-05
+
+- Add MCP `memory_runtime_info` for the serving process version, PID, start time,
+  enabled tool names, scoped source permissions and effective Git scheduler
+  settings; CLI `runtime-info` explicitly describes only its own process.
+- Add CLI `health` and MCP `memory_health` aggregating links, explicit relations,
+  Git evidence review and pending rename/batch operations. Report incomplete and
+  unavailable checks explicitly; preserve journal discovery after index failures.
+- Bump workspace package versions to 0.3.0; no new SQLite migration is required.
+
+- Add single-source CLI/MCP batch create/update previews, reviewed plan hashes,
+  final-state ID validation and source-wide writer locking with per-note history.
+- Recover interrupted batches from durable journals across index rebuilds;
+  expose journal discovery and allow MCP initialization for pending-batch recovery.
+- Prevent updated Git sync/pull from publishing or importing across unfinished
+  batches; request after-write sync once after a complete indexed MCP batch.
 
 - Clarify memory recall alongside other skills in the portable skill, MCP policy
   and always-loaded instruction template; document global Codex AGENTS.md setup
@@ -12,6 +27,13 @@
 - Add CLI `contradictions` and MCP `memory_contradictions` for explicit active
   contradictions, active endpoints of supersession chains and dependency or
   supersession cycles, without changing knowledge statuses.
+
+### Upgrade notes
+
+- Update and restart every writer and Git synchronization process before using
+  batch writes. Replacing a binary does not update existing MCP connections.
+- Use `memory_runtime_info` on each updated connection to inspect its serving
+  version and tools. Existing schema v8 remains supported without a new migration.
 
 ## 0.2.2 — 2026-11-04
 

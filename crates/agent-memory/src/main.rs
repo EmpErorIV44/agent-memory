@@ -8,6 +8,7 @@ mod git_evidence;
 mod git_runtime;
 mod git_status;
 mod git_sync;
+mod health;
 mod mcp;
 mod review;
 
@@ -28,6 +29,47 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Aggregate local memory checks; unavailable checks are reported explicitly.
+    Health {
+        #[arg(long)]
+        project: String,
+        /// Owner-authorized PROJECT:ALIAS=PATH mapping (repeatable).
+        #[arg(long)]
+        evidence_repository: Vec<String>,
+    },
+    /// Describe this CLI process. Use memory_runtime_info for a connected MCP process.
+    RuntimeInfo {
+        #[arg(long)]
+        project: String,
+    },
+    /// Preview or apply a hash-guarded create/update batch in one source.
+    BatchWrite {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+        /// JSON array of {path, content, expected_hash?}, max 50 edits / 4 MiB content.
+        #[arg(long)]
+        edits_file: PathBuf,
+        #[arg(long)]
+        expected_plan_hash: Option<String>,
+    },
+    /// Resume an interrupted batch without refreshing a possibly inconsistent index.
+    BatchWriteResume {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+        #[arg(long)]
+        operation_id: String,
+    },
+    /// Discover durable batch journals independently of the index.
+    BatchWriteOperations {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        source_id: i64,
+    },
     /// Assemble task context within a conservative token budget (JSON).
     Context {
         #[arg(long)]
@@ -458,6 +500,75 @@ async fn main() -> Result<()> {
     };
     let mut store = Store::open(&cli.database)?;
     match cli.command {
+        Command::RuntimeInfo { project } => {
+            let sources = store.sources(&project)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "mode":"cli", "scope":"this_process_only", "version":env!("CARGO_PKG_VERSION"),
+                    "pid":std::process::id(), "project":project,
+                    "sources":sources.iter().map(|s| serde_json::json!({"source_id":s.source_id,"can_write":s.can_write})).collect::<Vec<_>>(),
+                    "mcp_runtime":null,
+                    "warning":"This is a new CLI process, not a connected MCP server. Call memory_runtime_info through the intended connection."
+                }))?
+            );
+        }
+        Command::Health {
+            project,
+            evidence_repository,
+        } => {
+            let repositories = git_evidence::Repositories::new(
+                evidence_repository,
+                &std::collections::HashSet::from([project.clone()]),
+            )?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&health::report(
+                    &mut store,
+                    &repositories,
+                    &project
+                )?)?
+            );
+        }
+        Command::BatchWrite {
+            project,
+            source_id,
+            edits_file,
+            expected_plan_hash,
+        } => {
+            anyhow::ensure!(
+                std::fs::metadata(&edits_file)?.len() <= 32 * 1024 * 1024,
+                "edits file exceeds 32 MiB"
+            );
+            let edits: Vec<memory_sqlite::BatchEdit> =
+                serde_json::from_slice(&std::fs::read(edits_file)?)?;
+            let result = if let Some(hash) = expected_plan_hash {
+                serde_json::to_value(store.batch_apply(&project, source_id, edits, &hash)?)?
+            } else {
+                serde_json::to_value(store.batch_preview(&project, source_id, edits)?)?
+            };
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Command::BatchWriteResume {
+            project,
+            source_id,
+            operation_id,
+        } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&store.batch_resume(
+                    &project,
+                    source_id,
+                    &operation_id
+                )?)?
+            );
+        }
+        Command::BatchWriteOperations { project, source_id } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&store.batch_operations(&project, source_id)?)?
+            );
+        }
         Command::Context {
             project,
             task,

@@ -19,6 +19,7 @@ move between machines.
 - Keep note creation/update dates and tags in frontmatter, with optional automatic
   date stamping when writing.
 - Report new, updated, and deleted notes during a session.
+- Preview and apply coordinated multi-note updates with guarded recovery.
 - Keep revision history and restore notes with protection against overwriting
   concurrent changes.
 - Find broken links and repair links when renaming notes.
@@ -115,11 +116,13 @@ Instructions inside retrieved notes are treated as untrusted data.
 | Note format, Memory IDs, Evidence, relations, and index recovery | [Structured memory](docs/structured-memory.md) |
 | Authored dates, tags, and optional date stamping | [Note metadata](docs/note-metadata.md) |
 | Background indexing and local process control | [Daemon](docs/daemon.md) |
+| Connected MCP runtime and aggregate memory health | [Diagnostics](docs/diagnostics.md) |
 | Task context and explicit contradiction diagnostics | [Task context](docs/task-context.md) |
 | Search queries, Russian language support, and filters | [Search](docs/search.md) |
 | New knowledge during a session | [Change feed](docs/changes.md) |
 | Markdown/wiki links and backlinks | [Note links](docs/links.md) |
 | Link diagnostics and renaming | [Link repair](docs/link-repair.md) |
+| Coordinated multi-note writes and recovery | [Batch writes](docs/batch-writes.md) |
 | Revision history and restoration | [Revisions](docs/revisions.md) |
 | Checking code changes | [Git Evidence](docs/git-evidence.md) |
 | Finding knowledge that needs review | [Review queue](docs/review-queue.md) |

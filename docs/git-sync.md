@@ -78,3 +78,11 @@ Check `indexed` and `index_error` separately: publishing to Git and updating
 SQLite are separate operations. Git sync does not replace a backup of durable
 revision history or rename recovery journals because `.agent-memory-history/`
 and `.agent-memory-operations/` are excluded from commits.
+
+## Coordinated batches
+
+Updated sync holds the source writer lock and refuses unfinished batch journals.
+MCP requests after-write sync once after a complete indexed batch. Resume a pending
+batch before retrying sync; see [batch writes](batch-writes.md). Update/restart all
+sync processes before using batches because older binaries do not implement this
+guard. Direct external Git commands are outside this coordination.

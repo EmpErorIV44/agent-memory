@@ -72,6 +72,17 @@ full-document hash, as expected_hash. A search chunk is not a complete file.
 On conflict, read again and reconcile; do not force overwrite contradictory facts.
 If indexed=false, report that Markdown was saved and indexing needs repair;
 do not repeat the write. Report the saved path briefly after success.
+For coordinated note updates, use memory_batch_write preview first and inspect
+all full-document edits. Apply only the reviewed expected_plan_hash under normal
+write policy and source permissions. The single-source batch is not an atomic
+filesystem transaction. Inspect complete/partial/applied/index errors. After a
+partial operation, discover memory_batch_write_operations and explicitly resume
+its operation_id with memory_batch_write_resume. Do not rerun the original batch
+or overwrite external conflicts. Recovery works without a successful index refresh;
+completed journals are receipts and do not restore old content after later edits.
+Keep operation/history directories with source backups. Updated Git synchronization
+refuses unfinished batches; update all sync processes before using batch writes.
+
 # Session changes
 
 When memory_changes is available, establish a baseline at session start and poll
@@ -121,3 +132,13 @@ requests may delegate to it and fall back to standalone indexing when unavailabl
 Daemon status covers local observations only; it does not establish remote Git
 freshness or authorize writes. Use owner-selected projects and the same database.
 The daemon never grants extra source access, writes notes or runs Git sync.
+
+# Runtime and aggregate diagnostics
+
+When available, use memory_runtime_info(project) through the intended connection
+to inspect its serving process version, PID, enabled tools and scoped scheduler
+settings. It does not inspect installed replacements or other client processes.
+Use memory_health(project) for a local overview of links, explicit relations,
+Git evidence review and unfinished operations. Inspect incomplete/skipped/error
+sections and unknown evidence; a clear report does not prove semantic consistency
+or remote freshness. Neither tool authorizes repairs or client restarts.

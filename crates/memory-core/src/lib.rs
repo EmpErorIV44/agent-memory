@@ -22,7 +22,7 @@ pub use metadata::{
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use sha2::{Digest, Sha256};
 use std::{io::Read, path::Path};
-pub use write::{read_markdown, write_markdown, WriteMode};
+pub use write::{read_markdown, write_markdown, SourceWriter, WriteMode};
 
 pub fn content_hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))

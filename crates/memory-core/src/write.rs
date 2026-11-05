@@ -134,148 +134,195 @@ fn write_inner(
     before_publish: impl FnOnce() -> Result<()>,
     after_publish: impl FnOnce() -> Result<()>,
 ) -> Result<String> {
-    validate_path(path)?;
-    ensure!(
-        !content.trim().is_empty() && content.len() <= MAX_CONTENT_BYTES,
-        "Markdown content must be nonempty and at most 1 MiB"
-    );
-    crate::parse_metadata(content).context("validate Markdown metadata before saving")?;
-    if let WriteMode::Update { expected_hash } = mode {
+    let writer = SourceWriter::open(root)?;
+    writer.write_inner(path, content, mode, before_publish, after_publish)
+}
+
+/// Hold one source lock across a coordinated set of individually durable writes.
+/// The pinned directory also prevents root substitution from redirecting writes.
+pub struct SourceWriter {
+    directory: Dir,
+    _lock: std::fs::File,
+}
+
+impl SourceWriter {
+    pub fn open(root: &Path) -> Result<Self> {
+        let directory = open_root(root)?;
+        reject_symlinks(&directory, ".agent-memory.lock")?;
+        let lock = directory
+            .open_with(
+                ".agent-memory.lock",
+                OpenOptions::new().read(true).write(true).create(true),
+            )?
+            .into_std();
+        lock.try_lock()
+            .context("another memory writer holds the source lock; retry later")?;
+        Ok(Self {
+            directory,
+            _lock: lock,
+        })
+    }
+
+    pub fn validate(path: &str, content: &str, mode: &WriteMode<'_>) -> Result<()> {
+        validate_path(path)?;
         ensure!(
-            expected_hash.len() == 64
-                && expected_hash
-                    .bytes()
-                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
-            "expected_hash must be a lowercase SHA-256"
+            !content.trim().is_empty() && content.len() <= MAX_CONTENT_BYTES,
+            "Markdown content must be nonempty and at most 1 MiB"
         );
+        crate::parse_metadata(content).context("validate Markdown metadata before saving")?;
+        if let WriteMode::Update { expected_hash } = mode {
+            ensure!(
+                expected_hash.len() == 64
+                    && expected_hash
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+                "expected_hash must be a lowercase SHA-256"
+            );
+        }
+        Ok(())
     }
-    let directory = open_root(root)?;
-    reject_symlinks(&directory, ".agent-memory.lock")?;
-    let lock = directory
-        .open_with(
-            ".agent-memory.lock",
-            OpenOptions::new().read(true).write(true).create(true),
-        )?
-        .into_std();
-    lock.try_lock()
-        .context("another memory writer holds the source lock; retry later")?;
-    reject_symlinks(&directory, path)?;
-    let target = Path::new(path);
-    let parent_path = target.parent().unwrap_or(Path::new(""));
-    // Pin and synchronize every newly created ancestor, not only the leaf directory.
-    let mut parent = directory.try_clone()?;
-    for component in parent_path.components() {
-        let name = component
-            .as_os_str()
-            .to_str()
-            .context("invalid parent component")?;
-        parent = crate::history::child_directory(&parent, name, true)?
-            .context("parent directory was not created")?;
+
+    pub fn hash(&self, path: &str) -> Result<Option<String>> {
+        validate_path(path)?;
+        reject_symlinks(&self.directory, path)?;
+        Ok(crate::history::read_live(&self.directory, path)?
+            .map(|bytes| crate::content_hash(&bytes)))
     }
-    let name = target.file_name().context("missing file name")?;
-    let (permissions, previous_bytes) = match &mode {
-        WriteMode::Create => {
-            match parent.symlink_metadata(name) {
-                Ok(_) => bail!("write conflict: document already exists; read it before updating"),
-                Err(error) if error.kind() == ErrorKind::NotFound => {}
+
+    pub fn write(&self, path: &str, content: &str, mode: WriteMode<'_>) -> Result<String> {
+        self.write_inner(path, content, mode, || Ok(()), || Ok(()))
+    }
+
+    fn write_inner(
+        &self,
+        path: &str,
+        content: &str,
+        mode: WriteMode<'_>,
+        before_publish: impl FnOnce() -> Result<()>,
+        after_publish: impl FnOnce() -> Result<()>,
+    ) -> Result<String> {
+        Self::validate(path, content, &mode)?;
+        let directory = &self.directory;
+        reject_symlinks(directory, path)?;
+        let target = Path::new(path);
+        let parent_path = target.parent().unwrap_or(Path::new(""));
+        // Pin and synchronize every newly created ancestor, not only the leaf directory.
+        let mut parent = directory.try_clone()?;
+        for component in parent_path.components() {
+            let name = component
+                .as_os_str()
+                .to_str()
+                .context("invalid parent component")?;
+            parent = crate::history::child_directory(&parent, name, true)?
+                .context("parent directory was not created")?;
+        }
+        let name = target.file_name().context("missing file name")?;
+        let (permissions, previous_bytes) = match &mode {
+            WriteMode::Create => {
+                match parent.symlink_metadata(name) {
+                    Ok(_) => {
+                        bail!("write conflict: document already exists; read it before updating")
+                    }
+                    Err(error) if error.kind() == ErrorKind::NotFound => {}
+                    Err(error) => return Err(error.into()),
+                }
+                (None, None)
+            }
+            WriteMode::Update { expected_hash } => {
+                let metadata = parent
+                    .symlink_metadata(name)
+                    .context("write conflict: document is missing")?;
+                ensure!(
+                    metadata.is_file() && !metadata.file_type().is_symlink(),
+                    "target must be a regular Markdown file"
+                );
+                let bytes = crate::history::read_file(
+                    &parent,
+                    name.to_str().context("invalid filename")?,
+                    MAX_CONTENT_BYTES as u64,
+                )?;
+                std::str::from_utf8(&bytes).context("existing Markdown is not UTF-8")?;
+                ensure!(
+                format!("{:x}", Sha256::digest(&bytes)) == *expected_hash,
+                "write conflict: document changed; read the full document again before updating"
+            );
+                (Some(metadata.permissions()), Some(bytes))
+            }
+        };
+        let history = crate::history::History::open(directory, path, true)?
+            .context("history directory was not created")?;
+        history.recover(directory)?;
+        if let Some(bytes) = &previous_bytes {
+            history.baseline(bytes)?;
+            // A no-op has no publication gap and must not create an ambiguous pending
+            // record whose target was already present before any write.
+            if bytes == content.as_bytes() {
+                return Ok(crate::content_hash(bytes));
+            }
+        }
+        let (temporary, mut file) = loop {
+            let temp_name = format!(
+                ".agent-memory-{}-{}.tmp",
+                std::process::id(),
+                TEMP_ID.fetch_add(1, Ordering::Relaxed)
+            );
+            match parent.open_with(&temp_name, OpenOptions::new().write(true).create_new(true)) {
+                Ok(file) => {
+                    break (
+                        TemporaryFile {
+                            directory: &parent,
+                            name: temp_name,
+                        },
+                        file,
+                    )
+                }
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(error.into()),
             }
-            (None, None)
+        };
+        if let Some(permissions) = permissions {
+            file.set_permissions(permissions)?;
         }
-        WriteMode::Update { expected_hash } => {
-            let metadata = parent
-                .symlink_metadata(name)
-                .context("write conflict: document is missing")?;
-            ensure!(
-                metadata.is_file() && !metadata.file_type().is_symlink(),
-                "target must be a regular Markdown file"
-            );
+        file.write_all(content.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        let revision = history.prepare(content.as_bytes())?;
+        before_publish()?;
+        // Recheck immediately before publication; external editors do not take our advisory lock.
+        if let WriteMode::Update { expected_hash } = mode {
             let bytes = crate::history::read_file(
                 &parent,
                 name.to_str().context("invalid filename")?,
                 MAX_CONTENT_BYTES as u64,
-            )?;
-            std::str::from_utf8(&bytes).context("existing Markdown is not UTF-8")?;
+            )
+            .context("write conflict: document disappeared")?;
             ensure!(
-                format!("{:x}", Sha256::digest(&bytes)) == *expected_hash,
-                "write conflict: document changed; read the full document again before updating"
+                format!("{:x}", Sha256::digest(bytes)) == expected_hash,
+                "write conflict: document changed during write"
             );
-            (Some(metadata.permissions()), Some(bytes))
+            parent.rename(&temporary.name, &parent, name)?;
+        } else {
+            // Unlike rename, hard_link never replaces an existing destination, even on a race.
+            parent
+                .hard_link(&temporary.name, &parent, name)
+                .context("publish new Markdown without overwriting an existing file")?;
         }
-    };
-    let history = crate::history::History::open(&directory, path, true)?
-        .context("history directory was not created")?;
-    history.recover(&directory)?;
-    if let Some(bytes) = &previous_bytes {
-        history.baseline(bytes)?;
-        // A no-op has no publication gap and must not create an ambiguous pending
-        // record whose target was already present before any write.
-        if bytes == content.as_bytes() {
-            return Ok(crate::content_hash(bytes));
-        }
-    }
-    let (temporary, mut file) = loop {
-        let temp_name = format!(
-            ".agent-memory-{}-{}.tmp",
-            std::process::id(),
-            TEMP_ID.fetch_add(1, Ordering::Relaxed)
-        );
-        match parent.open_with(&temp_name, OpenOptions::new().write(true).create_new(true)) {
-            Ok(file) => {
-                break (
-                    TemporaryFile {
-                        directory: &parent,
-                        name: temp_name,
-                    },
-                    file,
-                )
+        let hash = crate::content_hash(content.as_bytes());
+        let finalized = (|| -> Result<()> {
+            after_publish()?;
+            crate::history::sync_directory(&parent)?;
+            history.finalize(&revision)?;
+            Ok(())
+        })();
+        if let Err(error) = finalized {
+            return Err(crate::history::PublishedWriteError {
+                content_hash: hash,
+                message: format!("{error:#}"),
             }
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error.into()),
+            .into());
         }
-    };
-    if let Some(permissions) = permissions {
-        file.set_permissions(permissions)?;
+        Ok(hash)
     }
-    file.write_all(content.as_bytes())?;
-    file.sync_all()?;
-    drop(file);
-    let revision = history.prepare(content.as_bytes())?;
-    before_publish()?;
-    // Recheck immediately before publication; external editors do not take our advisory lock.
-    if let WriteMode::Update { expected_hash } = mode {
-        let bytes = crate::history::read_file(
-            &parent,
-            name.to_str().context("invalid filename")?,
-            MAX_CONTENT_BYTES as u64,
-        )
-        .context("write conflict: document disappeared")?;
-        ensure!(
-            format!("{:x}", Sha256::digest(bytes)) == expected_hash,
-            "write conflict: document changed during write"
-        );
-        parent.rename(&temporary.name, &parent, name)?;
-    } else {
-        // Unlike rename, hard_link never replaces an existing destination, even on a race.
-        parent
-            .hard_link(&temporary.name, &parent, name)
-            .context("publish new Markdown without overwriting an existing file")?;
-    }
-    let hash = crate::content_hash(content.as_bytes());
-    let finalized = (|| -> Result<()> {
-        after_publish()?;
-        crate::history::sync_directory(&parent)?;
-        history.finalize(&revision)?;
-        Ok(())
-    })();
-    if let Err(error) = finalized {
-        return Err(crate::history::PublishedWriteError {
-            content_hash: hash,
-            message: format!("{error:#}"),
-        }
-        .into());
-    }
-    Ok(hash)
 }
 
 #[cfg(test)]

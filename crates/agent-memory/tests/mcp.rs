@@ -60,12 +60,15 @@ async fn scenario() -> Result<()> {
     assert_eq!(
         names,
         [
+            "memory_batch_write",
+            "memory_batch_write_operations",
             "memory_changes",
             "memory_context",
             "memory_contradictions",
             "memory_freshness",
             "memory_get",
             "memory_get_record",
+            "memory_health",
             "memory_history",
             "memory_link_diagnostics",
             "memory_links",
@@ -74,6 +77,7 @@ async fn scenario() -> Result<()> {
             "memory_rename_operations",
             "memory_review_queue",
             "memory_revision_get",
+            "memory_runtime_info",
             "memory_search",
             "memory_sources",
             "memory_sync_status",

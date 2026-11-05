@@ -3,6 +3,8 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use std::path::Path;
 use std::time::Duration;
 
+mod batch;
+pub use batch::{BatchEdit, BatchPlan, BatchResult};
 mod changes;
 pub mod config;
 mod context;

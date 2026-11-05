@@ -90,6 +90,25 @@ impl Runtime {
         })))
     }
 
+    /// Configuration of this scheduler, filtered through current project permissions.
+    pub fn diagnostics(&self, project: &str, sources: &[memory_sqlite::SourceInfo]) -> Value {
+        let ids: Vec<_> = sources
+            .iter()
+            .filter(|source| source.can_write)
+            .filter_map(|source| {
+                self.targets
+                    .get(&source.source_id)
+                    .filter(|target| {
+                        target.projects.iter().any(|p| p == project)
+                            && std::path::Path::new(&source.root_path) == target.root
+                    })
+                    .map(|_| source.source_id)
+            })
+            .collect();
+        json!({"enabled":!ids.is_empty(),"source_ids":ids,"after_write":self.after_write,
+            "interval_secs":self.interval.as_secs(),"remote_checked":false})
+    }
+
     fn authorized(&self, source_id: i64, target: &Target, project: Option<&str>) -> Result<()> {
         let store = Store::open(&self.database)?;
         for allowed in &target.projects {

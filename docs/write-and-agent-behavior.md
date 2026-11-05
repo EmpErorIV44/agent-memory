@@ -162,6 +162,13 @@ The response contains `source_id`, `path`, `content_hash`, `indexed`, and
 SQLite update did not complete. Do not repeat the write: fix the cause and run
 `index`.
 
+## Coordinated updates
+
+Use [batch writes](batch-writes.md) to review and apply related changes to several
+notes in one source. The operation preflights all edits, holds one source lock,
+retains per-note history and journals recoverable partial publication. It does not
+claim atomic visibility to external filesystem readers or infer semantic edits.
+
 ## CLI
 
 Prepare a file containing the full text outside the indexed source, then run:

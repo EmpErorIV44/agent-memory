@@ -34,6 +34,21 @@ impl GitFreshness {
     }
 }
 
+// Keep Git publication out of a batch's publication gap. An interrupted batch
+// must be explicitly resumed before any automatic commit/push or incoming pull.
+fn batch_source_guard(root: &Path) -> Result<memory_core::SourceWriter> {
+    let writer = memory_core::SourceWriter::open(root)?;
+    for id in memory_core::list_operations(root)? {
+        let value: serde_json::Value =
+            serde_json::from_slice(&memory_core::read_operation(root, &id)?)?;
+        ensure!(
+            value["operation_kind"] != "batch_write" || memory_core::operation_complete(root, &id)?,
+            "Git synchronization refuses an unfinished batch; resume it first"
+        );
+    }
+    Ok(writer)
+}
+
 fn repository_lock(git_dir: &Path) -> Result<fs::File> {
     let path = git_dir.join("agent-memory-sync.lock");
     if let Ok(metadata) = fs::symlink_metadata(&path) {
@@ -162,6 +177,7 @@ pub fn freshness(root: &Path, fetch: bool) -> Result<GitFreshness> {
 pub fn pull_source(root: &Path) -> Result<GitFreshness> {
     let git_dir = status_directory(root)?.context("Git update requires a source repository")?;
     let _lock = repository_lock(&git_dir)?;
+    let _source_lock = batch_source_guard(root)?;
     upstream(root).context("Git update requires a configured upstream")?;
     for state in [
         "MERGE_HEAD",
@@ -182,7 +198,9 @@ pub fn pull_source(root: &Path) -> Result<GitFreshness> {
         "Git update refuses unresolved conflicts"
     );
     ensure!(
-        checked(root, &["status", "--porcelain", "--untracked-files=normal"])?.is_empty(),
+        checked(root, &["status", "--porcelain", "--untracked-files=normal"])?
+            .lines()
+            .all(|line| line == "?? .agent-memory.lock"),
         "Git update requires a clean worktree and index, including untracked files"
     );
     fetch_upstream(root)?;
@@ -368,7 +386,10 @@ pub fn sync_source(root: &Path) -> Result<()> {
     lock.try_lock()
         .context("another Git sync holds the repository lock")?;
     let status = crate::git_status::start(git_dir)?;
-    let result = sync_locked(&root);
+    let result = (|| {
+        let _source_lock = batch_source_guard(&root)?;
+        sync_locked(&root)
+    })();
     let saved_status = crate::git_status::finish(git_dir, status, &result);
     result?;
     saved_status.context("Git synchronization completed but status could not be saved")?;
@@ -484,6 +505,31 @@ mod tests {
     }
 
     #[test]
+    fn git_sync_and_pull_refuse_locked_or_unfinished_batches() {
+        let (_temp, local, _remote) = fixture();
+        let writer = memory_core::SourceWriter::open(&local).unwrap();
+        assert!(sync_source(&local).is_err());
+        assert!(pull_source(&local).is_err());
+        drop(writer);
+        let journal = serde_json::json!({"operation_kind":"batch_write","version":1});
+        let id =
+            memory_core::save_operation(&local, &serde_json::to_vec(&journal).unwrap()).unwrap();
+        fs::write(local.join("batch.md"), "# Partial batch").unwrap();
+        let head = checked(&local, &["rev-parse", "HEAD"]).unwrap();
+        assert!(sync_source(&local)
+            .unwrap_err()
+            .to_string()
+            .contains("unfinished batch"));
+        assert!(pull_source(&local)
+            .unwrap_err()
+            .to_string()
+            .contains("unfinished batch"));
+        assert_eq!(checked(&local, &["rev-parse", "HEAD"]).unwrap(), head);
+        memory_core::finish_operation(&local, &id).unwrap();
+        sync_source(&local).unwrap();
+    }
+
+    #[test]
     fn freshness_fetch_and_pull_fast_forward_without_touching_push_status() {
         let (temp, local, remote) = fixture();
         external_commit(temp.path(), &remote);
@@ -549,7 +595,8 @@ mod tests {
         );
         assert!(checked(&local, &["status", "--porcelain"])
             .unwrap()
-            .is_empty());
+            .lines()
+            .all(|line| line == "?? .agent-memory.lock"));
     }
 
     #[test]
@@ -627,11 +674,9 @@ mod tests {
         fs::create_dir(local.join(".agent-memory-history")).unwrap();
         fs::write(local.join(".agent-memory-history/snapshot.md"), "hidden").unwrap();
         fs::create_dir(local.join(".agent-memory-operations")).unwrap();
-        fs::write(
-            local.join(".agent-memory-operations/operation.json"),
-            "private plan",
-        )
-        .unwrap();
+        // Use a valid immutable journal: synchronization now inspects journals
+        // to keep unfinished batches private, while still ignoring their payloads.
+        memory_core::save_operation(&local, br#"{"private_plan":true}"#).unwrap();
         fs::write(
             local.join(".agent-memory-operations/snapshot.md"),
             "private content",

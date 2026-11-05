@@ -291,8 +291,12 @@ impl Store {
         )?;
         let mut operations = Vec::new();
         for operation_id in memory_core::list_operations(&root)? {
-            let journal: RenameJournal =
-                serde_json::from_slice(&memory_core::read_operation(&root, &operation_id)?)?;
+            let bytes = memory_core::read_operation(&root, &operation_id)?;
+            let value: serde_json::Value = serde_json::from_slice(&bytes)?;
+            if value["operation_kind"] == "batch_write" {
+                continue;
+            }
+            let journal: RenameJournal = serde_json::from_slice(&bytes)?;
             if journal.plan.project != project {
                 continue;
             }
