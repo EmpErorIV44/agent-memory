@@ -68,8 +68,16 @@ required = {"memory_health", "memory_runtime_info", "memory_batch_write", "memor
             "memory_review_queue", "memory_rename_operations", "memory_rename_resume"}
 if not required <= tools:
     raise SystemExit(f"Missing tools: {required - tools}")
+def payload(result):
+    if "structuredContent" in result:
+        return result["structuredContent"]
+    texts = [block["text"] for block in result.get("content", [])
+             if block.get("type") == "text"]
+    return json.loads(texts[0]) if len(texts) == 1 else {}
+
+
 search = responses[3]["result"]
-if search.get("isError") or not search.get("structuredContent", {}).get("hits"):
+if search.get("isError") or not payload(search).get("hits"):
     raise SystemExit(f"Search failed or returned no knowledge: {search}")
 for request_id in (4, 5, 6, 7, 8):
     if responses[request_id]["result"].get("isError"):

@@ -169,8 +169,13 @@ MCP:
 ```
 
 `memory_list` returns `{"memories":[...]}` and `memory_get_record` returns
-`{"record":...}`. Each record contains a `memory` object, `document_id`, `source_id`,
-`path` and the full document's `content_hash`. To bootstrap constraints and
+`{"record":...}`. Compact list entries contain `memory.id/kind/status/summary`, document `title`,
+`source_id`, `path` and the full document's `content_hash`. Evidence, relations,
+tags and other full-record metadata are omitted, not reported as empty. Use
+`include_details: true` in MCP or CLI `memory list --full` for the previous full
+list shape, or `memory_get_record`/CLI `memory get` for one complete structured
+record. Full records retain document IDs, metadata, evidence and authorized
+relations. Compact listing uses one scoped query without loading those details. To bootstrap constraints and
 preferences, use the list and then read the complete source document:
 
 ```json

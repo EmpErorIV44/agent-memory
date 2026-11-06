@@ -18,6 +18,24 @@ pub struct MemoryRecord {
     pub tags: Vec<String>,
 }
 
+/// Lightweight discovery without evidence or relation hydration.
+#[derive(Debug, Clone, Serialize)]
+pub struct MemorySummary {
+    pub memory: MemorySummaryMetadata,
+    pub title: String,
+    pub source_id: i64,
+    pub path: String,
+    pub content_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MemorySummaryMetadata {
+    pub id: String,
+    pub kind: memory_core::MemoryKind,
+    pub status: memory_core::MemoryStatus,
+    pub summary: String,
+}
+
 fn encoded<T: Serialize>(value: &T) -> Result<String> {
     serde_json::to_value(value)?
         .as_str()
@@ -64,6 +82,42 @@ pub(crate) fn insert(
 }
 
 impl Store {
+    /// Compact discovery uses the same project/source authorization as full records.
+    /// Does not load evidence, relations, tags or the Markdown body.
+    pub fn list_memory_summaries(&self, project: &str) -> Result<Vec<MemorySummary>> {
+        let project_id = self.project_id(project)?;
+        let mut query = self.connection.prepare(
+            "SELECT m.memory_id,m.kind,m.status,m.summary,d.title,d.source_id,d.relative_path,d.content_hash FROM memories m JOIN documents d ON d.id=m.document_id WHERE m.project_id=?1 AND EXISTS (SELECT 1 FROM project_sources ps WHERE ps.source_id=d.source_id AND ps.project_id=?1 AND ps.can_read=1) ORDER BY m.memory_id")?;
+        let rows = query.query_map([project_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, i64>(5)?,
+                row.get::<_, String>(6)?,
+                row.get::<_, String>(7)?,
+            ))
+        })?;
+        rows.map(|row| {
+            let (id, kind, status, summary, title, source_id, path, content_hash) = row?;
+            Ok(MemorySummary {
+                memory: MemorySummaryMetadata {
+                    id,
+                    kind: decoded(kind)?,
+                    status: decoded(status)?,
+                    summary,
+                },
+                title,
+                source_id,
+                path,
+                content_hash,
+            })
+        })
+        .collect()
+    }
+
     /// Structured assertions only from readable sources and the explicitly named project.
     pub fn list_memories(&self, project: &str) -> Result<Vec<MemoryRecord>> {
         let project_id = self.project_id(project)?;

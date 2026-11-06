@@ -202,3 +202,31 @@ The CLI also checks `can_write`; `--allow-write` applies to the MCP process.
   Durable history and recovery are available through `memory_history`,
   `memory_revision_get`, `memory_restore`, and CLI `history`; restoration requires
   the current full-document hash and creates a new revision.
+
+## Response size and compatibility
+
+MCP serves one JSON representation by default: `mcp --response-format structured`
+puts the payload in `structuredContent` with an empty `content` array. This avoids
+the SDK's automatic full JSON text copy. Clients must consume structured results.
+For clients that only display text, use `--response-format text`: one JSON text
+block, no structured payload. `--response-format both` restores the legacy SDK
+format with both complete copies for compatibility. Errors remain text errors in
+all modes. The formatting mode does not change payload schemas or write/conflict semantics.
+`memory_runtime_info` reports the active `response_format`.
+
+When orchestrating calls, select `result.structuredContent` when present, otherwise
+parse the JSON text block. Send only that selected value (or the needed fields) to
+the agent context. Do not log/print the entire tool envelope, repeat both copies,
+or re-read an unchanged note already loaded in this session. Server formatting
+cannot control extra copies introduced by a client.
+
+`memory_list` defaults to compact summaries with complete-note read coordinates.
+Request details only for records that need evidence or relationship inspection.
+The compact list is discovery, not a substitute for full-note reads required by
+bootstrap or before guarded updates. CLI `memory list --full` and MCP
+`include_details: true` retain full-list access.
+
+Connections negotiating a protocol older than 2025-06-18 automatically use one
+JSON text copy when the configured format is structured, since structured tool
+results were introduced in that protocol revision. Explicit text/both settings
+remain available. Runtime info reports the effective format for that connection.

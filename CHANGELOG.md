@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — 2026-11-06
+
+- Default successful MCP responses to a single structured payload. Add
+  `mcp --response-format text|both` for text-only and legacy clients; preserve
+  text errors and report the active format in runtime diagnostics.
+- Default CLI/MCP memory lists to compact summaries and full-note read
+  coordinates, without loading evidence/relations. Keep full records through
+  `memory list --full`, MCP `include_details: true`, and individual lookups.
+
 ## 0.3.0 — 2026-11-05
 
 - Add MCP `memory_runtime_info` for the serving process version, PID, start time,

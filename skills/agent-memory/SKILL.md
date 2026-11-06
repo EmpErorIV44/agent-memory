@@ -8,7 +8,10 @@ description: Use connected Agent Memory MCP to recall project decisions and cons
 Use the connected server's `memory_search`, `memory_get`, `memory_sources`, and,
 when enabled, `memory_write`. Tool names may have a client-specific prefix.
 When available, `memory_list` and `memory_get_record` expose structured knowledge
-by stable logical Memory ID, including status, evidence and accessible relations.
+by stable logical Memory ID. New servers return compact `memory_list` entries by
+default (ID/kind/status/summary, title, source_id/path/content_hash); evidence and
+relations are omitted. Use `include_details: true` for full lists when supported,
+or `memory_get_record` for one detailed record.
 Memory IDs, document IDs and search chunk IDs are distinct.
 Follow the server's allowed projects and write policy. Installing this skill
 does not grant write permission or authorize unrelated actions.
@@ -61,6 +64,21 @@ If memory is unavailable, disclose what could not be loaded and continue work
 that does not depend on it; do not claim the bootstrap is complete.
 `memory_sources` is needed when inspecting source rights or choosing a writable
 destination, not as a mandatory first read.
+
+## Response handling
+
+Consume one representation: use `structuredContent` when present, otherwise parse
+the JSON text content. When orchestrating tool calls, print only that selected
+payload or needed fields; do not print the whole MCP envelope or both copies.
+New servers default to structured-only successful results. Owner CLI options
+`mcp --response-format text` and `--response-format both` support text-only or
+legacy clients. Errors remain text. Avoid re-reading unchanged notes already
+loaded during this session; retain complete current reads before guarded updates.
+
+Connections negotiating a protocol older than 2025-06-18 automatically use one
+JSON text copy when the configured format is structured, since structured tool
+results were introduced in that protocol revision. Explicit text/both settings
+remain available. Runtime info reports the effective format for that connection.
 
 ## Recall
 

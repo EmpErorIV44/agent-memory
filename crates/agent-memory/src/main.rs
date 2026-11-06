@@ -189,6 +189,9 @@ enum Command {
     },
     /// Serve MCP tools over stdin/stdout for explicitly allowed projects.
     Mcp {
+        /// Output one JSON representation, or both for legacy clients.
+        #[arg(long, value_enum, default_value = "structured")]
+        response_format: mcp::ResponseFormat,
         #[arg(long, required = true)]
         project: Vec<String>,
         /// Enable memory_write (also requires a writable source binding).
@@ -339,6 +342,9 @@ enum MemoryCommand {
         since: Option<String>,
     },
     List {
+        /// Include full records with evidence and relations instead of compact summaries.
+        #[arg(long)]
+        full: bool,
         #[arg(long)]
         project: String,
     },
@@ -470,6 +476,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     if let Command::Mcp {
+        response_format,
         project,
         allow_write,
         write_policy,
@@ -490,6 +497,7 @@ async fn main() -> Result<()> {
                 interval_secs: git_sync_interval_secs,
             },
             evidence_repository,
+            response_format,
         )
         .await;
     }
@@ -766,12 +774,16 @@ async fn main() -> Result<()> {
             );
         }
         Command::Memory {
-            command: MemoryCommand::List { project },
+            command: MemoryCommand::List { project, full },
         } => {
             store.index(&project)?;
             println!(
                 "{}",
-                serde_json::to_string_pretty(&store.list_memories(&project)?)?
+                serde_json::to_string_pretty(&if full {
+                    serde_json::to_value(store.list_memories(&project)?)?
+                } else {
+                    serde_json::to_value(store.list_memory_summaries(&project)?)?
+                })?
             );
         }
         Command::Memory {

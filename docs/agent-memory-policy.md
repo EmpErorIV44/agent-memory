@@ -142,3 +142,19 @@ Use memory_health(project) for a local overview of links, explicit relations,
 Git evidence review and unfinished operations. Inspect incomplete/skipped/error
 sections and unknown evidence; a clear report does not prove semantic consistency
 or remote freshness. Neither tool authorizes repairs or client restarts.
+
+# Compact discovery and response handling
+
+When available, memory_list defaults to compact summaries with source/path/hash
+coordinates; evidence and relations are omitted, not empty. Request
+include_details=true for legacy full lists or memory_get_record for one record.
+This does not replace required complete-note reads. Process one result payload:
+prefer structuredContent, otherwise parse JSON text. Do not repeat full envelopes
+or both representations in agent context, or reread unchanged notes already
+loaded in this session. Owner --response-format text/both options provide client
+compatibility; structured-only is the default for successful responses.
+
+Connections negotiating a protocol older than 2025-06-18 automatically use one
+JSON text copy when the configured format is structured, since structured tool
+results were introduced in that protocol revision. Explicit text/both settings
+remain available. Runtime info reports the effective format for that connection.

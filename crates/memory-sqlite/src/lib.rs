@@ -18,7 +18,7 @@ mod rename;
 mod revisions;
 mod search_metadata;
 mod semantic;
-pub use memories::MemoryRecord;
+pub use memories::{MemoryRecord, MemorySummary, MemorySummaryMetadata};
 pub use memory_core::{Revision, RevisionDocument};
 pub use rename::{RenameEdit, RenameOperation, RenamePlan, RenameResult};
 pub use search_metadata::SearchOptions;
