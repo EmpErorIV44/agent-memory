@@ -1,0 +1,259 @@
+[
+  {
+    "id": "ru-inflection",
+    "mode": "search",
+    "query": "накладными",
+    "relevant": [
+      "invoice-parser.md"
+    ],
+    "forbidden": [],
+    "category": "inflection",
+    "rationale": "Пользователь спрашивает о накладных другой словоформой; нужна заметка о разборе номера."
+  },
+  {
+    "id": "ru-idempotency-paraphrase",
+    "mode": "search",
+    "query": "Как не обработать одно уведомление перевозчика дважды",
+    "relevant": [
+      "duplicate-webhooks.md"
+    ],
+    "forbidden": [],
+    "category": "paraphrase",
+    "rationale": "Описание проблемы без терминов webhook и идемпотентность."
+  },
+  {
+    "id": "ru-money-synonym",
+    "mode": "search",
+    "query": "Как избежать погрешностей при подсчёте цены",
+    "relevant": [
+      "money-precision.md"
+    ],
+    "forbidden": [],
+    "category": "synonym",
+    "rationale": "Цена и погрешность описывают ограничение денежной точности без его ключевых слов."
+  },
+  {
+    "id": "ru-punctuation",
+    "mode": "search",
+    "query": "AB-2026/0042",
+    "relevant": [
+      "invoice-parser.md"
+    ],
+    "forbidden": [],
+    "category": "punctuation",
+    "rationale": "Реальный идентификатор содержит пунктуацию; буквальный режим должен принять его.",
+    "literal": true
+  },
+  {
+    "id": "ru-filter-current",
+    "mode": "search",
+    "query": "выгрузки",
+    "relevant": [
+      "export-deletion.md"
+    ],
+    "forbidden": [
+      "export-old-retention.md"
+    ],
+    "category": "status-filter",
+    "rationale": "Принятые решения о выгрузках исключают отменённый срок.",
+    "kind": "decision",
+    "status": "accepted"
+  },
+  {
+    "id": "ru-filter-implemented",
+    "mode": "search",
+    "query": "стоимость доставки",
+    "relevant": [
+      "money-precision.md"
+    ],
+    "forbidden": [
+      "float-prices-old.md"
+    ],
+    "category": "status-filter",
+    "rationale": "Принятое ограничение цены нужно найти отдельно от удалённого прототипа.",
+    "kind": "constraint",
+    "status": "accepted"
+  },
+  {
+    "id": "ru-signature",
+    "mode": "search",
+    "query": "HMAC-SHA256",
+    "relevant": [
+      "webhook-signature.md"
+    ],
+    "forbidden": [],
+    "category": "technical-term",
+    "rationale": "Точное имя алгоритма подписи.",
+    "literal": true
+  },
+  {
+    "id": "ru-notification-versus-courier",
+    "mode": "search",
+    "query": "повторная доставка webhook",
+    "relevant": [
+      "webhook-retry.md"
+    ],
+    "forbidden": [],
+    "category": "ambiguous-topic",
+    "rationale": "Повтор уведомления следует отличать от повторного выезда курьера."
+  },
+  {
+    "id": "ru-phone-privacy",
+    "mode": "search",
+    "query": "телефон получателя журнал",
+    "relevant": [
+      "recipient-redaction.md"
+    ],
+    "forbidden": [],
+    "category": "multi-term",
+    "rationale": "Политика записи номера телефона в журналы."
+  },
+  {
+    "id": "ru-db-resource",
+    "mode": "search",
+    "query": "PostgreSQL CSV",
+    "relevant": [
+      "postgres-pool.md"
+    ],
+    "forbidden": [],
+    "category": "multi-term",
+    "rationale": "Вопрос о влиянии выгрузок на пул базы."
+  },
+  {
+    "id": "ru-context-duplicate",
+    "mode": "context",
+    "query": "Исправить повторную обработку webhook перевозчика",
+    "relevant": [
+      "tenant-isolation.md",
+      "money-precision.md",
+      "duplicate-webhooks.md"
+    ],
+    "forbidden": [
+      "export-old-retention.md",
+      "float-prices-old.md"
+    ],
+    "category": "context-relations",
+    "rationale": "Нужны защита от дублей и действующие ограничения проекта.",
+    "max_tokens": 16000
+  },
+  {
+    "id": "ru-context-export",
+    "mode": "context",
+    "query": "Изменить удаление CSV-выгрузок и срок действия ссылки",
+    "relevant": [
+      "tenant-isolation.md",
+      "money-precision.md",
+      "export-deletion.md"
+    ],
+    "forbidden": [
+      "export-old-retention.md",
+      "float-prices-old.md"
+    ],
+    "category": "context-historical",
+    "rationale": "Текущее решение должно попасть в контекст, старое хранение исключается.",
+    "max_tokens": 16000
+  },
+  {
+    "id": "ru-context-cutoff",
+    "mode": "context",
+    "query": "Поменять завершение приёма заказов на складе",
+    "relevant": [
+      "tenant-isolation.md",
+      "money-precision.md",
+      "warehouse-cutoff.md",
+      "route-timezone.md"
+    ],
+    "forbidden": [
+      "export-old-retention.md",
+      "float-prices-old.md"
+    ],
+    "category": "context-one-hop",
+    "rationale": "Решение о времени приёма связано с часовым поясом через явную relation.",
+    "max_tokens": 32768
+  },
+  {
+    "id": "ru-context-refund",
+    "mode": "context",
+    "query": "Реализовать возврат наложенного платежа",
+    "relevant": [
+      "tenant-isolation.md",
+      "money-precision.md",
+      "returns-refund.md"
+    ],
+    "forbidden": [
+      "export-old-retention.md",
+      "float-prices-old.md"
+    ],
+    "category": "context-planned",
+    "rationale": "План возврата релевантен задаче реализации и зависит от денежного ограничения.",
+    "max_tokens": 32768
+  },
+  {
+    "id": "ru-context-cache",
+    "mode": "context",
+    "query": "Починить кэш отслеживания после webhook",
+    "relevant": [
+      "tenant-isolation.md",
+      "money-precision.md",
+      "tracking-cache.md",
+      "duplicate-webhooks.md"
+    ],
+    "forbidden": [
+      "export-old-retention.md",
+      "float-prices-old.md"
+    ],
+    "category": "context-one-hop",
+    "rationale": "Инвалидация кэша связана с обработкой событий и изоляцией заказчиков.",
+    "max_tokens": 32768
+  },
+  {
+    "id": "ru-context-no-lexical",
+    "mode": "context",
+    "query": "Оптимизировать построение диаграммы загрузки транспорта",
+    "relevant": [
+      "tenant-isolation.md",
+      "money-precision.md"
+    ],
+    "forbidden": [
+      "export-old-retention.md",
+      "float-prices-old.md"
+    ],
+    "category": "context-baseline",
+    "rationale": "Для новой темы без прямой заметки всё равно нужны принятые ограничения.",
+    "max_tokens": 32768
+  },
+  {
+    "id": "ru-context-duplicate-budget4000",
+    "mode": "context",
+    "query": "Исправить повторную обработку webhook перевозчика",
+    "relevant": [
+      "tenant-isolation.md",
+      "money-precision.md",
+      "duplicate-webhooks.md"
+    ],
+    "forbidden": [
+      "export-old-retention.md",
+      "float-prices-old.md"
+    ],
+    "category": "context-budget",
+    "rationale": "Нужны защита от дублей и действующие ограничения проекта. Сниженный бюджет: пропуски оценивать вместе с omitted_count и excerpt_truncated.",
+    "max_tokens": 4000
+  },
+  {
+    "id": "ru-context-export-budget4000",
+    "mode": "context",
+    "query": "Изменить удаление CSV-выгрузок и срок действия ссылки",
+    "relevant": [
+      "tenant-isolation.md",
+      "money-precision.md",
+      "export-deletion.md"
+    ],
+    "forbidden": [
+      "export-old-retention.md",
+      "float-prices-old.md"
+    ],
+    "category": "context-budget",
+    "rationale": "Текущее решение должно попасть в контекст, старое хранение исключается. Сниженный бюджет: пропуски оценивать вместе с omitted_count и excerpt_truncated.",
+    "max_tokens": 4000
+  }
+]

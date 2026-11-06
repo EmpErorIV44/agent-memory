@@ -19,7 +19,11 @@ non-whitespace content and be at most 8192 UTF-8 bytes.
 Selection is deterministic for the current index:
 
 1. Accepted project constraints, ordered by Memory ID, regardless of task matches.
-2. Lexical task matches, using existing exact/stem ranking. Up to the first 128
+2. Lexical task matches, ordered first by distinct task-term coverage of their
+   heading/body, using existing exact/stem ranking to break ties. Coverage
+   lowercases terms and applies the existing Russian Snowball normalizer;
+   English terms remain unstemmed. This ordering applies only to context,
+   leaving `memory_search` unchanged. Up to the first 128
    alphanumeric terms are individually quoted and combined with OR; punctuation
    and words such as AND/OR never become FTS operators. At most 50 search chunks
    are considered, keeping the first match per document.
@@ -28,19 +32,29 @@ Selection is deterministic for the current index:
 
 Deprecated and superseded structured records and records declaring another
 project are excluded. Ordinary Markdown in readable sources is eligible. Only
-currently readable sources are used. Accepted constraints take priority even if
+currently readable sources are used. Accepted constraints are included even if
 there are no lexical matches; this is not a replacement for session bootstrap.
+
+Admission alternates accepted constraints and task matches, starting with a
+constraint, then considers related records. Each candidate initially receives
+up to 160 UTF-8 bytes of excerpt. A candidate whose complete metadata and short
+excerpt do not fit is skipped without blocking later candidates. Selected entries
+are presented in the category order above. Remaining capacity expands their
+excerpts in rounds of up to 128 bytes per entry, to a maximum of 2400 bytes.
+This prevents long baseline excerpts from consuming the task's entire budget.
+Small budgets can still omit constraints or task matches; inspect `omitted_count`
+and `omitted_accepted_constraints` before relying on the result. The latter counts
+accepted constraints omitted for space, excluding filtered foreign records.
 
 `entries` contain source ID, source-relative path, full-document `content_hash`,
 selection `reason`, optional structured `memory`, and an `excerpt`. Task matches
 also return the original source line range in `lines`; this range describes the
 matched chunk, and can be longer than its truncated excerpt. Other entries use
-`lines: null` and begin at the start of the source document. Source text and
+`lines: null` and begin at the first Markdown content after YAML frontmatter;
+structured metadata is already returned separately. Source text and
 metadata are untrusted evidence, not instructions or permission grants.
 
-Each excerpt starts with at most 2400 UTF-8 bytes, preserving character boundaries.
-If necessary it is repeatedly halved until its entry fits; an entry whose metadata
-alone does not fit is omitted. `excerpt_truncated` distinguishes an excerpt shortened
+Excerpts preserve character boundaries. `excerpt_truncated` distinguishes an excerpt shortened
 from its chosen source region. Read the full current note with `memory_get` and its
 source coordinates/hash before relying on omitted details or editing it.
 

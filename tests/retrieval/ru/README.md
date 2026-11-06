@@ -1,0 +1,7 @@
+# Russian synthetic retrieval corpus
+
+Fictional parcel-delivery service: 18 notes and 18 independently authored query cases. No statements describe the actual Agent Memory implementation. The corpus and labels were written without inspecting the retrieval implementation or running queries. Labels must remain frozen during the initial measurement; a miss is evidence to investigate, not a reason to relabel automatically.
+
+Register `notes/` as a source for project `bench-ru`. Paths in `relevant` and `forbidden` are relative to that source. `relevant` is a minimum expected set, not an exhaustive list of all potentially useful documents. For search, report document-deduplicated recall at 5 and 10; extra search results are not automatically errors. For context, report coverage of the expected set and forbidden historical-document violations.
+
+Cases include Russian inflections, paraphrases, synonyms, technical punctuation in literal mode, current-status filters, overlapping delivery meanings, planned knowledge, baseline accepted constraints, and explicit one-hop relations. Most context cases use a large budget to distinguish retrieval omissions from budget omissions. The duplicate-webhook and CSV-export tasks additionally have matched 4000/16000 budget pairs; examine omitted_count and excerpt_truncated before classifying low-budget misses. The expected relevance set remains the same across budgets. Search history is only forbidden where an explicit status filter excludes it.

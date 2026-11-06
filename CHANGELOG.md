@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Add frozen synthetic English/Russian retrieval corpora and an isolated CLI
+  evaluation runner with reproducible quality reports and input fingerprints.
+- Balance context budgets between short constraint and task excerpts before
+  expanding them; report omitted accepted constraints explicitly and avoid
+  duplicating YAML frontmatter in baseline excerpts.
+- Prefer broader task-term coverage when ordering context matches, preserving
+  ordinary search semantics and existing ranking as the tie-breaker.
+
 ## 0.3.2 — 2026-11-06
 
 - Add kind/status/exact-tag/source filters and opt-in limit/offset pagination to

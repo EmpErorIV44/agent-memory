@@ -85,8 +85,9 @@ remain available. Runtime info reports the effective format for that connection.
 When available, `memory_context(project, task, max_tokens)` assembles accepted
 constraints, lexical task matches and one-hop active related knowledge. Task is
 plain text; the default 4000 budget conservatively counts UTF-8 bytes of its JSON
-payload rather than model-specific tokens. Check `omitted_count` and
-`excerpt_truncated`; snippets do not replace baseline bootstrap or full-note reads.
+payload rather than model-specific tokens. Check `omitted_count`,
+`omitted_accepted_constraints` (when available), and `excerpt_truncated`; snippets
+do not replace baseline bootstrap or full-note reads.
 Source coordinates and hashes can be passed to `memory_get` for complete notes.
 The context does not verify evidence or establish remote freshness.
 Use `memory_contradictions` to inspect explicit active contradiction pairs,

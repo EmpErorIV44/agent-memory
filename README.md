@@ -183,6 +183,11 @@ The workspace has three crates: `memory-core` handles Markdown and history,
 `memory-sqlite` handles indexing and permissions, and `agent-memory` provides
 the CLI and MCP server.
 
+The [synthetic retrieval benchmark](docs/retrieval-evaluation.md) measures search
+and task-context quality against frozen English and Russian test notes in an
+isolated temporary database. Its [initial baseline](tests/retrieval/README.md)
+records measured gaps separately from operational failures.
+
 ## License
 
 [MIT](LICENSE).

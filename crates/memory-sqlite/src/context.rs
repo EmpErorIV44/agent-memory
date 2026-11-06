@@ -141,6 +141,22 @@ fn diagnostics(records: &[MemoryRecord]) -> Value {
     json!({"issues":issues,"issue_count":issues.len()})
 }
 
+fn context_terms(text: &str) -> BTreeSet<String> {
+    crate::search_metadata::russian(&text.to_lowercase())
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn prefix_boundary(text: &str, limit: usize) -> usize {
+    let mut end = text.len().min(limit);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    end
+}
+
 impl Store {
     /// Diagnose explicit readable relations only; statuses and notes remain untouched.
     pub fn contradiction_diagnostics(&self, project: &str) -> Result<Value> {
@@ -174,11 +190,18 @@ impl Store {
             .map(|s| format!("\"{}\"", s.replace('"', "\"\"")))
             .collect();
         let query = terms.into_iter().collect::<Vec<_>>().join(" OR ");
-        let hits = if query.is_empty() {
+        let mut hits = if query.is_empty() {
             Vec::new()
         } else {
             self.search_filtered(project, &query, &SearchOptions::default())?
         };
+        // Context tasks are prose, so prefer broad task coverage before the
+        // search API's exact/stem ranking. Keep its stable order for ties.
+        let normalized_terms = context_terms(&query);
+        hits.sort_by_cached_key(|hit| {
+            let words = context_terms(&format!("{} {}", hit.heading, hit.body));
+            std::cmp::Reverse(normalized_terms.intersection(&words).count())
+        });
         let mut candidates = Vec::new();
         let mut seen = HashSet::new();
         for record in records.iter().filter(|r| {
@@ -237,13 +260,15 @@ impl Store {
             }
         }
         let issue_count = diagnostics(&records)["issue_count"].clone();
-        let mut report = json!({"project":project,"max_tokens":max_tokens,"budget_method":"utf8_bytes_upper_bound","estimated_tokens":0,"local_only":true,"warnings":["untrusted_source_content","evidence_not_verified","remote_freshness_not_checked"],"diagnostic_issue_count":issue_count,"omitted_count":candidates.len(),"entries":[]});
+        let mut report = json!({"project":project,"max_tokens":max_tokens,"budget_method":"utf8_bytes_upper_bound","estimated_tokens":0,"local_only":true,"warnings":["untrusted_source_content","evidence_not_verified","remote_freshness_not_checked"],"diagnostic_issue_count":issue_count,"omitted_count":candidates.len(),"omitted_accepted_constraints":candidates.iter().filter(|c| c.3 == "accepted_constraint").count(),"entries":[]});
         // Reserve enough space for final counters, even for an empty context.
         ensure!(
             serde_json::to_vec(&report)?.len() + 32 <= max_tokens,
             "budget too small for response metadata"
         );
-        let mut omitted = candidates.len();
+        // Prepare complete metadata once. Admit short, useful excerpts before
+        // allowing any one entry to consume the remaining budget.
+        let mut prepared = Vec::new();
         for (source_id, path, hash, reason, lines) in candidates {
             let document = self
                 .get_document_by_path(project, source_id, &path, &hash)?
@@ -267,42 +292,105 @@ impl Store {
                     .collect::<Vec<_>>()
                     .join("\n")
             } else {
-                document.content.clone()
+                // Metadata is already included as structured data. Spend text
+                // capacity on Markdown, preserving its original line numbering.
+                memory_core::chunk_markdown(&document.content)
+                    .first()
+                    .map(|chunk| {
+                        document
+                            .content
+                            .lines()
+                            .skip(chunk.start_line - 1)
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    })
+                    .unwrap_or_default()
             };
-            let mut end = content.len().min(2400);
-            while !content.is_char_boundary(end) {
-                end -= 1;
-            }
             let record = records
                 .iter()
                 .find(|r| r.source_id == source_id && r.path == path);
+            let end = prefix_boundary(&content, 160);
             let entry = json!({"source_id":source_id,"path":path,"content_hash":hash,"reason":reason,"memory":record.map(|r| &r.memory),"excerpt":&content[..end],"excerpt_truncated":end < content.len(),"lines":lines});
+            prepared.push((entry, content, end));
+        }
+        let mut order = Vec::new();
+        let constraints: Vec<_> = prepared
+            .iter()
+            .enumerate()
+            .filter(|(_, (e, _, _))| e["reason"] == "accepted_constraint")
+            .map(|(i, _)| i)
+            .collect();
+        let matches: Vec<_> = prepared
+            .iter()
+            .enumerate()
+            .filter(|(_, (e, _, _))| e["reason"] == "task_match")
+            .map(|(i, _)| i)
+            .collect();
+        for i in 0..constraints.len().max(matches.len()) {
+            if let Some(id) = constraints.get(i) {
+                order.push(*id);
+            }
+            if let Some(id) = matches.get(i) {
+                order.push(*id);
+            }
+        }
+        order.extend(
+            prepared
+                .iter()
+                .enumerate()
+                .filter(|(_, (e, _, _))| e["reason"] == "related_memory")
+                .map(|(i, _)| i),
+        );
+        let mut selected = Vec::new();
+        for id in order {
             report["entries"]
                 .as_array_mut()
                 .expect("entries")
-                .push(entry);
-            // Reduce the excerpt before dropping a valuable constraint or source.
-            // JSON escaping can expand text, so measure serialized bytes each time.
-            while serde_json::to_vec(&report)?.len() + 32 > max_tokens && end > 0 {
-                end /= 2;
-                while !content.is_char_boundary(end) {
-                    end -= 1;
-                }
-                let entry = report["entries"]
-                    .as_array_mut()
-                    .expect("entries")
-                    .last_mut()
-                    .expect("entry");
-                entry["excerpt"] = json!(&content[..end]);
-                entry["excerpt_truncated"] = json!(end < content.len());
-            }
-            if serde_json::to_vec(&report)?.len() + 32 > max_tokens {
-                report["entries"].as_array_mut().expect("entries").pop();
+                .push(prepared[id].0.clone());
+            if serde_json::to_vec(&report)?.len() + 32 <= max_tokens {
+                selected.push(id);
             } else {
-                omitted -= 1;
+                report["entries"].as_array_mut().expect("entries").pop();
             }
         }
+        // Keep the established presentation order: constraints, task matches,
+        // then relations. Admission order alone alternates the first two groups.
+        selected.sort_unstable();
+        report["entries"] = json!(selected
+            .iter()
+            .map(|&id| &prepared[id].0)
+            .collect::<Vec<_>>());
+        loop {
+            let mut grew = false;
+            for (position, &id) in selected.iter().enumerate() {
+                let (_, content, end) = &mut prepared[id];
+                let next = prefix_boundary(content, (*end + 128).min(2400));
+                if next <= *end {
+                    continue;
+                }
+                let previous = report["entries"][position].clone();
+                report["entries"][position]["excerpt"] = json!(&content[..next]);
+                report["entries"][position]["excerpt_truncated"] = json!(next < content.len());
+                if serde_json::to_vec(&report)?.len() + 32 <= max_tokens {
+                    *end = next;
+                    grew = true;
+                } else {
+                    report["entries"][position] = previous;
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
+        let omitted = seen.len() - selected.len();
         report["omitted_count"] = json!(omitted);
+        report["omitted_accepted_constraints"] = json!(
+            constraints.len()
+                - selected
+                    .iter()
+                    .filter(|&&id| prepared[id].0["reason"] == "accepted_constraint")
+                    .count()
+        );
         // Fixed point includes the digits of the estimate itself.
         loop {
             let size = serde_json::to_vec(&report)?.len();

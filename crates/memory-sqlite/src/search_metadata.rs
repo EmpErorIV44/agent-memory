@@ -55,7 +55,7 @@ fn enum_string<T: Serialize>(value: &Option<T>) -> Result<Option<String>> {
 }
 
 /// Preserve punctuation, FTS operators and English; normalize Russian words only.
-fn russian(text: &str) -> String {
+pub(crate) fn russian(text: &str) -> String {
     let stemmer = Stemmer::create(Algorithm::Russian);
     let mut result = String::with_capacity(text.len());
     let mut word = String::new();

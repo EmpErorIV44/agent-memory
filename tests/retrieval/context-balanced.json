@@ -1,0 +1,1534 @@
+{
+  "binary_version": "agent-memory 0.3.2",
+  "binary_sha256": "768c5809f2fd1f6365c52baaaf28080468d140776334f7c7404135a59d80726d",
+  "fixture_sha256": {
+    "en/README.md": "b9f0ecfa5119b1662d0621d3d4e6218493c4c43fd5682abc35ceba78ad07cd43",
+    "en/cases.json": "659b1915989720d45363290b04f61cf89d354911ae4417f6e14b59e0e5e5e04c",
+    "en/notes/api-key-expiry.md": "638f07938e8d3e53a18aa4db83a62a4210850b4a741ee86a1dbc102381e9b36c",
+    "en/notes/audit-redaction.md": "ac99f87beb477077e2318979dbfea0a5054db5065f554845d61d9b3f95e79807",
+    "en/notes/build-release.md": "b4236ec3d0910753a7e7d45ee71fb0c32800ed0370eeea1db584fba4bc89607f",
+    "en/notes/catalog-cache.md": "eec4907ac57ba0213ad0783b324c7f2967a04e93ab78ba70b33a8429042169c8",
+    "en/notes/customer-export.md": "80aa333a814809fd69b2d6987f6401630dfde31ddf2e6fc7584f09a6d8a7508c",
+    "en/notes/database-migration.md": "826cc1495c018460984ed511264cd98652430b63f1887c45ec7a1902ebdf0431",
+    "en/notes/database-recovery.md": "4ffed4b5b2547238d83fae1c257fad281b0e317f5914fd5709f7f42197eec69e",
+    "en/notes/delivery-receipts.md": "f533898e679b593f316f4092b39f3804849e8010b14cf2c5da56a890f86f24aa",
+    "en/notes/export-streaming.md": "5cdae79dc90d9296d21467ffdc69a498b30f2eeb88208548176bcef9fe3a5ce6",
+    "en/notes/invoice-numbering.md": "75c4f56aae77456376f81cb097855796aef879c173d10180f427362a694e00f6",
+    "en/notes/payment-idempotency.md": "b22c028e74fab52a21c850e8a9320f301768a7933a96a2ab64f4c5e7b68c5760",
+    "en/notes/refund-review.md": "30494a5fd220ee255b2464b286d16031271d91a952ef9c1eae1c99615f2a3437",
+    "en/notes/request-tracing.md": "55db7eac041fdce5195f4fbf5bffddd176b9f8c3d0d55b8c82a0ac199801b95b",
+    "en/notes/search-normalization.md": "8796e9d1a3d775db27883607b3194401d6dcc8aadd14548c30bde95290ed08e3",
+    "en/notes/session-expiry.md": "bf2ba745f57d18958bfce2bd3b8e081321bd2f32944877cbf5b3b24617263e4d",
+    "en/notes/tenant-isolation.md": "6fd53bdafd9bf1c2a8adab53436f5a7977da2694695c620b77d47d72ebf5d7a5",
+    "en/notes/webhook-fixed-delay.md": "a13bd008572594c6f5b82b8ccc0bc81b6f71cac0866390cb5330dde64fb0573b",
+    "en/notes/webhook-retry.md": "81e0a20fad0c8bd21e5a51542149fb2258b652374afe7dacab5d8aac3eb9559d",
+    "ru/README.md": "081487fd2ffcef18c318149dc557a1e0ab422be0b9d4c54adf3ded3cbe5948c8",
+    "ru/cases.json": "f1391e071d7e5d27ad99e3a7a51c4aa20d7e8a49c5f7a97c1621e274a6a78167",
+    "ru/notes/courier-attempts.md": "54eba74965254f940035d9ea65b59c82d855d0946b32c7d92420bc14ae91772f",
+    "ru/notes/duplicate-webhooks.md": "d62e906b4182d9ad3b30e93c680afe552956f8c5258f319186442666f1458d6f",
+    "ru/notes/export-deletion.md": "5a9e46e755f9a39adf61c7b8a82eef8bac2adef6e244622cec9630e3b321b194",
+    "ru/notes/export-old-retention.md": "3ece78f206d832ff66bffb704fc46032244d0125882df171192fe5f45e12babc",
+    "ru/notes/float-prices-old.md": "209ac5701546568b1e1eb4d492740c3715352b42b3c895af0bd8e4065867ee5f",
+    "ru/notes/invoice-parser.md": "2df8b618fe44f09cf9e125b4ff0c5de1204b15cb4f45df59bb0912fae7217205",
+    "ru/notes/money-precision.md": "7d5d0bb032090364ba4a35d3764ab702da8e8edd66636189904b105b3e77ff04",
+    "ru/notes/postgres-pool.md": "36ea31b48fd66434e84d92c8ea3eefec44f3bce9460623858eccc6b688cef186",
+    "ru/notes/recipient-redaction.md": "4c535fb6b7cfb988a17c01f6a4771572b5364047612c06b6951c1a5d5c7d4f51",
+    "ru/notes/release-health.md": "16710b1bb5bd57fb45c74e53a0eff815fb5d06475a3a6d7e0c3d4992c2dcc847",
+    "ru/notes/returns-refund.md": "e1bfcc35d6e6163c9c095bf2c4d167c07f1eb3fc9b1df6f97d0a2207722fd42b",
+    "ru/notes/route-timezone.md": "96e973a995ac3a75a4c70bb0fb7ae3b0fba28e5774e1c6d00109fed88c353baf",
+    "ru/notes/sms-provider.md": "c9b8ea1b24307a9f61095e4a7efb66c62190021b7723667a277c9a76611a5395",
+    "ru/notes/tenant-isolation.md": "64d92e02b74d0952e993fa625229f59dd191dacbe901da15070855db518d2afb",
+    "ru/notes/tracking-cache.md": "d1e3c6cbf19dabd25a055d45fbfc3e0326833cade35c03d99ff14acd85db2351",
+    "ru/notes/warehouse-cutoff.md": "fe8deed8b25f4a118ed7e66575bca182bb073ea097380b0d48c6e4d91a641d9c",
+    "ru/notes/webhook-retry.md": "75c2b299d2980d92e73ca1581d3f5edf952be447426e11c6d1392722afdca773",
+    "ru/notes/webhook-signature.md": "42420877c06292729d99e6e0708f60d906b5629ced5a28e07b372407e4635f6b"
+  },
+  "suite_count": 2,
+  "note_count": 36,
+  "method": "document deduplication; search top 50 chunks then document ranks; context full returned set",
+  "warning": "Synthetic, author-judged labels; judged_precision treats unlabeled returns as irrelevant and is not proof of irrelevance. Quality misses are not automatically product defects.",
+  "cases": [
+    {
+      "suite": "en",
+      "id": "en-search-webhook",
+      "mode": "search",
+      "query": "webhook retry",
+      "relevant": [
+        "webhook-retry.md"
+      ],
+      "forbidden": [],
+      "category": "direct",
+      "rationale": "Find the current policy; historical policy may also be returned.",
+      "returned_paths": [
+        "webhook-retry.md",
+        "delivery-receipts.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.5,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-search-webhook-filter",
+      "mode": "search",
+      "query": "webhook",
+      "relevant": [
+        "webhook-retry.md"
+      ],
+      "forbidden": [
+        "webhook-fixed-delay.md",
+        "delivery-receipts.md"
+      ],
+      "category": "status-filter",
+      "rationale": "Accepted decisions should exclude the obsolete fixed-delay record.",
+      "kind": "decision",
+      "status": "accepted",
+      "returned_paths": [
+        "webhook-retry.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-search-payment-header",
+      "mode": "search",
+      "query": "Idempotency-Key",
+      "relevant": [
+        "payment-idempotency.md"
+      ],
+      "forbidden": [],
+      "category": "punctuation",
+      "rationale": "Literal user input containing a hyphen should locate the header contract.",
+      "literal": true,
+      "returned_paths": [
+        "payment-idempotency.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-search-duplicate-charge",
+      "mode": "search",
+      "query": "avoid charging a merchant twice after a timeout",
+      "relevant": [
+        "payment-idempotency.md"
+      ],
+      "forbidden": [],
+      "category": "paraphrase",
+      "rationale": "The intended safeguard is payment idempotency even without shared wording.",
+      "returned_paths": [],
+      "recall_at_5": 0.0,
+      "recall_at_10": 0.0,
+      "recall": 0.0,
+      "judged_precision": null,
+      "reciprocal_rank": 0,
+      "missing": [
+        "payment-idempotency.md"
+      ],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": false
+    },
+    {
+      "suite": "en",
+      "id": "en-search-signin",
+      "mode": "search",
+      "query": "how long can a browser login remain active",
+      "relevant": [
+        "session-expiry.md"
+      ],
+      "forbidden": [],
+      "category": "paraphrase",
+      "rationale": "Browser authentication lifetime differs from service integration keys.",
+      "returned_paths": [],
+      "recall_at_5": 0.0,
+      "recall_at_10": 0.0,
+      "recall": 0.0,
+      "judged_precision": null,
+      "reciprocal_rank": 0,
+      "missing": [
+        "session-expiry.md"
+      ],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": false
+    },
+    {
+      "suite": "en",
+      "id": "en-search-service-key",
+      "mode": "search",
+      "query": "API keys expiration",
+      "relevant": [
+        "api-key-expiry.md"
+      ],
+      "forbidden": [],
+      "category": "ambiguity",
+      "rationale": "Select the service key lifecycle rather than browser refresh tokens.",
+      "returned_paths": [
+        "api-key-expiry.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-search-invoice",
+      "mode": "search",
+      "query": "invoice number",
+      "relevant": [
+        "invoice-numbering.md"
+      ],
+      "forbidden": [],
+      "category": "direct",
+      "rationale": "Locate numbering rules for finalized invoices.",
+      "returned_paths": [
+        "invoice-numbering.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-search-cache",
+      "mode": "search",
+      "query": "Redis price",
+      "relevant": [
+        "catalog-cache.md"
+      ],
+      "forbidden": [],
+      "category": "multi-term",
+      "rationale": "Find price cache invalidation rather than catalog text normalization.",
+      "returned_paths": [
+        "catalog-cache.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-search-export-ready",
+      "mode": "search",
+      "query": "notify me when my data download is ready",
+      "relevant": [
+        "customer-export.md"
+      ],
+      "forbidden": [],
+      "category": "paraphrase",
+      "rationale": "User phrasing should recover the asynchronous export completion flow.",
+      "returned_paths": [],
+      "recall_at_5": 0.0,
+      "recall_at_10": 0.0,
+      "recall": 0.0,
+      "judged_precision": null,
+      "reciprocal_rank": 0,
+      "missing": [
+        "customer-export.md"
+      ],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": false
+    },
+    {
+      "suite": "en",
+      "id": "en-search-recovery",
+      "mode": "search",
+      "query": "recovery point objective",
+      "relevant": [
+        "database-recovery.md"
+      ],
+      "forbidden": [],
+      "category": "literal-phrase",
+      "rationale": "Locate the recovery target and backup policy.",
+      "literal": true,
+      "returned_paths": [
+        "database-recovery.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-search-refund",
+      "mode": "search",
+      "query": "refund",
+      "relevant": [
+        "refund-review.md"
+      ],
+      "forbidden": [],
+      "category": "planned-filter",
+      "rationale": "A planned feature must remain discoverable without claiming it is implemented.",
+      "kind": "decision",
+      "status": "planned",
+      "returned_paths": [
+        "refund-review.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-search-checksum",
+      "mode": "search",
+      "query": "SHA256SUMS",
+      "relevant": [
+        "build-release.md"
+      ],
+      "forbidden": [],
+      "category": "identifier",
+      "rationale": "A named release checksum file should locate artifact verification.",
+      "returned_paths": [
+        "build-release.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-context-webhook",
+      "mode": "context",
+      "query": "Change webhook delivery receipts scheduling for repeated server failures",
+      "relevant": [
+        "tenant-isolation.md",
+        "audit-redaction.md",
+        "database-migration.md",
+        "webhook-retry.md",
+        "delivery-receipts.md"
+      ],
+      "forbidden": [
+        "webhook-fixed-delay.md",
+        "export-streaming.md"
+      ],
+      "category": "context-relations",
+      "rationale": "Current scheduling and receipt storage are needed with baseline constraints; history is excluded.",
+      "max_tokens": 16000,
+      "context_diagnostics": {
+        "max_tokens": 16000,
+        "estimated_tokens": 7104,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "related_memory"
+        ],
+        "actual_compact_json_bytes": 7104
+      },
+      "returned_paths": [
+        "audit-redaction.md",
+        "database-migration.md",
+        "tenant-isolation.md",
+        "delivery-receipts.md",
+        "webhook-retry.md",
+        "refund-review.md",
+        "payment-idempotency.md",
+        "catalog-cache.md",
+        "database-recovery.md",
+        "request-tracing.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.5,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-context-migration",
+      "mode": "context",
+      "query": "Add a required tenant_id column during a rolling deployment",
+      "relevant": [
+        "tenant-isolation.md",
+        "audit-redaction.md",
+        "database-migration.md"
+      ],
+      "forbidden": [
+        "webhook-fixed-delay.md",
+        "export-streaming.md"
+      ],
+      "category": "context-constraints",
+      "rationale": "Tenant isolation and compatible migrations both govern the schema change.",
+      "max_tokens": 16000,
+      "context_diagnostics": {
+        "max_tokens": 16000,
+        "estimated_tokens": 9072,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match"
+        ],
+        "actual_compact_json_bytes": 9072
+      },
+      "returned_paths": [
+        "audit-redaction.md",
+        "database-migration.md",
+        "tenant-isolation.md",
+        "build-release.md",
+        "delivery-receipts.md",
+        "request-tracing.md",
+        "customer-export.md",
+        "invoice-numbering.md",
+        "payment-idempotency.md",
+        "webhook-retry.md",
+        "api-key-expiry.md",
+        "catalog-cache.md",
+        "refund-review.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.23076923076923078,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-context-export",
+      "mode": "context",
+      "query": "Improve the customer CSV export background worker and its download link",
+      "relevant": [
+        "tenant-isolation.md",
+        "audit-redaction.md",
+        "database-migration.md",
+        "customer-export.md"
+      ],
+      "forbidden": [
+        "export-streaming.md",
+        "webhook-fixed-delay.md"
+      ],
+      "category": "context-current",
+      "rationale": "Use the supported export flow and global constraints instead of the retired streaming endpoint.",
+      "max_tokens": 16000,
+      "context_diagnostics": {
+        "max_tokens": 16000,
+        "estimated_tokens": 10418,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match"
+        ],
+        "actual_compact_json_bytes": 10418
+      },
+      "returned_paths": [
+        "audit-redaction.md",
+        "database-migration.md",
+        "tenant-isolation.md",
+        "customer-export.md",
+        "request-tracing.md",
+        "invoice-numbering.md",
+        "session-expiry.md",
+        "build-release.md",
+        "delivery-receipts.md",
+        "database-recovery.md",
+        "refund-review.md",
+        "search-normalization.md",
+        "payment-idempotency.md",
+        "catalog-cache.md",
+        "webhook-retry.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.26666666666666666,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-context-tracing",
+      "mode": "context",
+      "query": "Propagate traceparent into queue workers without leaking customer secrets",
+      "relevant": [
+        "tenant-isolation.md",
+        "audit-redaction.md",
+        "database-migration.md",
+        "request-tracing.md"
+      ],
+      "forbidden": [
+        "export-streaming.md",
+        "webhook-fixed-delay.md"
+      ],
+      "category": "context-related-constraint",
+      "rationale": "Tracing work must retain the audit secrecy constraint.",
+      "max_tokens": 16000,
+      "context_diagnostics": {
+        "max_tokens": 16000,
+        "estimated_tokens": 4476,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match"
+        ],
+        "actual_compact_json_bytes": 4476
+      },
+      "returned_paths": [
+        "audit-redaction.md",
+        "database-migration.md",
+        "tenant-isolation.md",
+        "request-tracing.md",
+        "customer-export.md",
+        "database-recovery.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.6666666666666666,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-search-no-match",
+      "mode": "search",
+      "query": "lunar spacecraft telemetry",
+      "relevant": [],
+      "forbidden": [],
+      "category": "no-match",
+      "rationale": "The fictional commerce corpus contains no spacecraft or telemetry design; an empty result is expected.",
+      "returned_paths": [],
+      "recall_at_5": null,
+      "recall_at_10": null,
+      "recall": null,
+      "judged_precision": null,
+      "reciprocal_rank": null,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "en",
+      "id": "en-context-webhook-small-budget",
+      "mode": "context",
+      "query": "Change webhook delivery receipts scheduling for repeated server failures",
+      "relevant": [
+        "tenant-isolation.md",
+        "audit-redaction.md",
+        "database-migration.md",
+        "webhook-retry.md",
+        "delivery-receipts.md"
+      ],
+      "forbidden": [
+        "webhook-fixed-delay.md",
+        "export-streaming.md"
+      ],
+      "category": "context-budget",
+      "rationale": "Same relevance labels as the large-budget webhook case; measure recall lost under budget pressure separately from selection quality. A miss here is not automatically a contract violation.",
+      "max_tokens": 4000,
+      "context_diagnostics": {
+        "max_tokens": 4000,
+        "estimated_tokens": 3952,
+        "omitted_count": 4,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 4,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match"
+        ],
+        "actual_compact_json_bytes": 3952
+      },
+      "returned_paths": [
+        "audit-redaction.md",
+        "database-migration.md",
+        "tenant-isolation.md",
+        "delivery-receipts.md",
+        "webhook-retry.md",
+        "refund-review.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.8333333333333334,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-inflection",
+      "mode": "search",
+      "query": "накладными",
+      "relevant": [
+        "invoice-parser.md"
+      ],
+      "forbidden": [],
+      "category": "inflection",
+      "rationale": "Пользователь спрашивает о накладных другой словоформой; нужна заметка о разборе номера.",
+      "returned_paths": [
+        "invoice-parser.md",
+        "tenant-isolation.md",
+        "tracking-cache.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.3333333333333333,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-idempotency-paraphrase",
+      "mode": "search",
+      "query": "Как не обработать одно уведомление перевозчика дважды",
+      "relevant": [
+        "duplicate-webhooks.md"
+      ],
+      "forbidden": [],
+      "category": "paraphrase",
+      "rationale": "Описание проблемы без терминов webhook и идемпотентность.",
+      "returned_paths": [],
+      "recall_at_5": 0.0,
+      "recall_at_10": 0.0,
+      "recall": 0.0,
+      "judged_precision": null,
+      "reciprocal_rank": 0,
+      "missing": [
+        "duplicate-webhooks.md"
+      ],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": false
+    },
+    {
+      "suite": "ru",
+      "id": "ru-money-synonym",
+      "mode": "search",
+      "query": "Как избежать погрешностей при подсчёте цены",
+      "relevant": [
+        "money-precision.md"
+      ],
+      "forbidden": [],
+      "category": "synonym",
+      "rationale": "Цена и погрешность описывают ограничение денежной точности без его ключевых слов.",
+      "returned_paths": [],
+      "recall_at_5": 0.0,
+      "recall_at_10": 0.0,
+      "recall": 0.0,
+      "judged_precision": null,
+      "reciprocal_rank": 0,
+      "missing": [
+        "money-precision.md"
+      ],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": false
+    },
+    {
+      "suite": "ru",
+      "id": "ru-punctuation",
+      "mode": "search",
+      "query": "AB-2026/0042",
+      "relevant": [
+        "invoice-parser.md"
+      ],
+      "forbidden": [],
+      "category": "punctuation",
+      "rationale": "Реальный идентификатор содержит пунктуацию; буквальный режим должен принять его.",
+      "literal": true,
+      "returned_paths": [
+        "invoice-parser.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-filter-current",
+      "mode": "search",
+      "query": "выгрузки",
+      "relevant": [
+        "export-deletion.md"
+      ],
+      "forbidden": [
+        "export-old-retention.md"
+      ],
+      "category": "status-filter",
+      "rationale": "Принятые решения о выгрузках исключают отменённый срок.",
+      "kind": "decision",
+      "status": "accepted",
+      "returned_paths": [
+        "export-deletion.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-filter-implemented",
+      "mode": "search",
+      "query": "стоимость доставки",
+      "relevant": [
+        "money-precision.md"
+      ],
+      "forbidden": [
+        "float-prices-old.md"
+      ],
+      "category": "status-filter",
+      "rationale": "Принятое ограничение цены нужно найти отдельно от удалённого прототипа.",
+      "kind": "constraint",
+      "status": "accepted",
+      "returned_paths": [
+        "money-precision.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-signature",
+      "mode": "search",
+      "query": "HMAC-SHA256",
+      "relevant": [
+        "webhook-signature.md"
+      ],
+      "forbidden": [],
+      "category": "technical-term",
+      "rationale": "Точное имя алгоритма подписи.",
+      "literal": true,
+      "returned_paths": [
+        "webhook-signature.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-notification-versus-courier",
+      "mode": "search",
+      "query": "повторная доставка webhook",
+      "relevant": [
+        "webhook-retry.md"
+      ],
+      "forbidden": [],
+      "category": "ambiguous-topic",
+      "rationale": "Повтор уведомления следует отличать от повторного выезда курьера.",
+      "returned_paths": [
+        "webhook-retry.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-phone-privacy",
+      "mode": "search",
+      "query": "телефон получателя журнал",
+      "relevant": [
+        "recipient-redaction.md"
+      ],
+      "forbidden": [],
+      "category": "multi-term",
+      "rationale": "Политика записи номера телефона в журналы.",
+      "returned_paths": [
+        "recipient-redaction.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-db-resource",
+      "mode": "search",
+      "query": "PostgreSQL CSV",
+      "relevant": [
+        "postgres-pool.md"
+      ],
+      "forbidden": [],
+      "category": "multi-term",
+      "rationale": "Вопрос о влиянии выгрузок на пул базы.",
+      "returned_paths": [
+        "postgres-pool.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 1.0,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-context-duplicate",
+      "mode": "context",
+      "query": "Исправить повторную обработку webhook перевозчика",
+      "relevant": [
+        "tenant-isolation.md",
+        "money-precision.md",
+        "duplicate-webhooks.md"
+      ],
+      "forbidden": [
+        "export-old-retention.md",
+        "float-prices-old.md"
+      ],
+      "category": "context-relations",
+      "rationale": "Нужны защита от дублей и действующие ограничения проекта.",
+      "max_tokens": 16000,
+      "context_diagnostics": {
+        "max_tokens": 16000,
+        "estimated_tokens": 12146,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "related_memory",
+          "related_memory",
+          "related_memory"
+        ],
+        "actual_compact_json_bytes": 12146
+      },
+      "returned_paths": [
+        "money-precision.md",
+        "tenant-isolation.md",
+        "duplicate-webhooks.md",
+        "tracking-cache.md",
+        "webhook-retry.md",
+        "invoice-parser.md",
+        "webhook-signature.md",
+        "release-health.md",
+        "sms-provider.md",
+        "warehouse-cutoff.md",
+        "export-deletion.md",
+        "returns-refund.md",
+        "route-timezone.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.23076923076923078,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-context-export",
+      "mode": "context",
+      "query": "Изменить удаление CSV-выгрузок и срок действия ссылки",
+      "relevant": [
+        "tenant-isolation.md",
+        "money-precision.md",
+        "export-deletion.md"
+      ],
+      "forbidden": [
+        "export-old-retention.md",
+        "float-prices-old.md"
+      ],
+      "category": "context-historical",
+      "rationale": "Текущее решение должно попасть в контекст, старое хранение исключается.",
+      "max_tokens": 16000,
+      "context_diagnostics": {
+        "max_tokens": 16000,
+        "estimated_tokens": 9426,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "related_memory"
+        ],
+        "actual_compact_json_bytes": 9426
+      },
+      "returned_paths": [
+        "money-precision.md",
+        "tenant-isolation.md",
+        "export-deletion.md",
+        "release-health.md",
+        "invoice-parser.md",
+        "postgres-pool.md",
+        "duplicate-webhooks.md",
+        "tracking-cache.md",
+        "webhook-retry.md",
+        "returns-refund.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.3,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-context-cutoff",
+      "mode": "context",
+      "query": "Поменять завершение приёма заказов на складе",
+      "relevant": [
+        "tenant-isolation.md",
+        "money-precision.md",
+        "warehouse-cutoff.md",
+        "route-timezone.md"
+      ],
+      "forbidden": [
+        "export-old-retention.md",
+        "float-prices-old.md"
+      ],
+      "category": "context-one-hop",
+      "rationale": "Решение о времени приёма связано с часовым поясом через явную relation.",
+      "max_tokens": 32768,
+      "context_diagnostics": {
+        "max_tokens": 32768,
+        "estimated_tokens": 8514,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "related_memory",
+          "related_memory"
+        ],
+        "actual_compact_json_bytes": 8514
+      },
+      "returned_paths": [
+        "money-precision.md",
+        "tenant-isolation.md",
+        "warehouse-cutoff.md",
+        "returns-refund.md",
+        "route-timezone.md",
+        "release-health.md",
+        "tracking-cache.md",
+        "duplicate-webhooks.md",
+        "export-deletion.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.4444444444444444,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-context-refund",
+      "mode": "context",
+      "query": "Реализовать возврат наложенного платежа",
+      "relevant": [
+        "tenant-isolation.md",
+        "money-precision.md",
+        "returns-refund.md"
+      ],
+      "forbidden": [
+        "export-old-retention.md",
+        "float-prices-old.md"
+      ],
+      "category": "context-planned",
+      "rationale": "План возврата релевантен задаче реализации и зависит от денежного ограничения.",
+      "max_tokens": 32768,
+      "context_diagnostics": {
+        "max_tokens": 32768,
+        "estimated_tokens": 6785,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "related_memory",
+          "related_memory",
+          "related_memory"
+        ],
+        "actual_compact_json_bytes": 6785
+      },
+      "returned_paths": [
+        "money-precision.md",
+        "tenant-isolation.md",
+        "returns-refund.md",
+        "courier-attempts.md",
+        "duplicate-webhooks.md",
+        "export-deletion.md",
+        "tracking-cache.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.42857142857142855,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-context-cache",
+      "mode": "context",
+      "query": "Починить кэш отслеживания после webhook",
+      "relevant": [
+        "tenant-isolation.md",
+        "money-precision.md",
+        "tracking-cache.md",
+        "duplicate-webhooks.md"
+      ],
+      "forbidden": [
+        "export-old-retention.md",
+        "float-prices-old.md"
+      ],
+      "category": "context-one-hop",
+      "rationale": "Инвалидация кэша связана с обработкой событий и изоляцией заказчиков.",
+      "max_tokens": 32768,
+      "context_diagnostics": {
+        "max_tokens": 32768,
+        "estimated_tokens": 12146,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match",
+          "related_memory",
+          "related_memory"
+        ],
+        "actual_compact_json_bytes": 12146
+      },
+      "returned_paths": [
+        "money-precision.md",
+        "tenant-isolation.md",
+        "tracking-cache.md",
+        "webhook-retry.md",
+        "release-health.md",
+        "webhook-signature.md",
+        "courier-attempts.md",
+        "duplicate-webhooks.md",
+        "returns-refund.md",
+        "sms-provider.md",
+        "warehouse-cutoff.md",
+        "export-deletion.md",
+        "route-timezone.md"
+      ],
+      "recall_at_5": 0.75,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.3076923076923077,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-context-no-lexical",
+      "mode": "context",
+      "query": "Оптимизировать построение диаграммы загрузки транспорта",
+      "relevant": [
+        "tenant-isolation.md",
+        "money-precision.md"
+      ],
+      "forbidden": [
+        "export-old-retention.md",
+        "float-prices-old.md"
+      ],
+      "category": "context-baseline",
+      "rationale": "Для новой темы без прямой заметки всё равно нужны принятые ограничения.",
+      "max_tokens": 32768,
+      "context_diagnostics": {
+        "max_tokens": 32768,
+        "estimated_tokens": 5905,
+        "omitted_count": 0,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 0,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "related_memory",
+          "related_memory",
+          "related_memory",
+          "related_memory"
+        ],
+        "actual_compact_json_bytes": 5905
+      },
+      "returned_paths": [
+        "money-precision.md",
+        "tenant-isolation.md",
+        "duplicate-webhooks.md",
+        "export-deletion.md",
+        "returns-refund.md",
+        "tracking-cache.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.3333333333333333,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-context-duplicate-budget4000",
+      "mode": "context",
+      "query": "Исправить повторную обработку webhook перевозчика",
+      "relevant": [
+        "tenant-isolation.md",
+        "money-precision.md",
+        "duplicate-webhooks.md"
+      ],
+      "forbidden": [
+        "export-old-retention.md",
+        "float-prices-old.md"
+      ],
+      "category": "context-budget",
+      "rationale": "Нужны защита от дублей и действующие ограничения проекта. Сниженный бюджет: пропуски оценивать вместе с omitted_count и excerpt_truncated.",
+      "max_tokens": 4000,
+      "context_diagnostics": {
+        "max_tokens": 4000,
+        "estimated_tokens": 3908,
+        "omitted_count": 7,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 6,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match"
+        ],
+        "actual_compact_json_bytes": 3908
+      },
+      "returned_paths": [
+        "money-precision.md",
+        "tenant-isolation.md",
+        "duplicate-webhooks.md",
+        "tracking-cache.md",
+        "webhook-retry.md",
+        "invoice-parser.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.5,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    },
+    {
+      "suite": "ru",
+      "id": "ru-context-export-budget4000",
+      "mode": "context",
+      "query": "Изменить удаление CSV-выгрузок и срок действия ссылки",
+      "relevant": [
+        "tenant-isolation.md",
+        "money-precision.md",
+        "export-deletion.md"
+      ],
+      "forbidden": [
+        "export-old-retention.md",
+        "float-prices-old.md"
+      ],
+      "category": "context-budget",
+      "rationale": "Текущее решение должно попасть в контекст, старое хранение исключается. Сниженный бюджет: пропуски оценивать вместе с omitted_count и excerpt_truncated.",
+      "max_tokens": 4000,
+      "context_diagnostics": {
+        "max_tokens": 4000,
+        "estimated_tokens": 3970,
+        "omitted_count": 4,
+        "omitted_accepted_constraints": 0,
+        "budget_method": "utf8_bytes_upper_bound",
+        "warnings": [
+          "untrusted_source_content",
+          "evidence_not_verified",
+          "remote_freshness_not_checked"
+        ],
+        "truncated_excerpts": 5,
+        "reasons": [
+          "accepted_constraint",
+          "accepted_constraint",
+          "task_match",
+          "task_match",
+          "task_match",
+          "task_match"
+        ],
+        "actual_compact_json_bytes": 3970
+      },
+      "returned_paths": [
+        "money-precision.md",
+        "tenant-isolation.md",
+        "export-deletion.md",
+        "release-health.md",
+        "invoice-parser.md",
+        "postgres-pool.md"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "recall": 1.0,
+      "judged_precision": 0.5,
+      "reciprocal_rank": 1.0,
+      "missing": [],
+      "forbidden_returned": [],
+      "negative_violation": false,
+      "quality_pass": true
+    }
+  ],
+  "summary": {
+    "search": {
+      "cases": 23,
+      "errors": 0,
+      "quality_passes": 18,
+      "mean_recall_at_5": 0.7727272727272727,
+      "mean_recall_at_10": 0.7727272727272727,
+      "mean_recall": 0.7727272727272727,
+      "mean_reciprocal_rank": 0.7727272727272727,
+      "mean_judged_precision": 0.9313725490196079,
+      "forbidden_violations": 0,
+      "negative_violations": 0
+    },
+    "context": {
+      "cases": 13,
+      "errors": 0,
+      "quality_passes": 13,
+      "mean_recall_at_5": 0.9807692307692307,
+      "mean_recall_at_10": 1.0,
+      "mean_recall": 1.0,
+      "mean_reciprocal_rank": 1.0,
+      "mean_judged_precision": 0.42632666478820325,
+      "forbidden_violations": 0,
+      "negative_violations": 0
+    }
+  },
+  "by_suite": {
+    "en": {
+      "search": {
+        "cases": 13,
+        "errors": 0,
+        "quality_passes": 10,
+        "mean_recall_at_5": 0.75,
+        "mean_recall_at_10": 0.75,
+        "mean_recall": 0.75,
+        "mean_reciprocal_rank": 0.75,
+        "mean_judged_precision": 0.9444444444444444,
+        "forbidden_violations": 0,
+        "negative_violations": 0
+      },
+      "context": {
+        "cases": 5,
+        "errors": 0,
+        "quality_passes": 5,
+        "mean_recall_at_5": 1.0,
+        "mean_recall_at_10": 1.0,
+        "mean_recall": 1.0,
+        "mean_reciprocal_rank": 1.0,
+        "mean_judged_precision": 0.49948717948717947,
+        "forbidden_violations": 0,
+        "negative_violations": 0
+      }
+    },
+    "ru": {
+      "search": {
+        "cases": 10,
+        "errors": 0,
+        "quality_passes": 8,
+        "mean_recall_at_5": 0.8,
+        "mean_recall_at_10": 0.8,
+        "mean_recall": 0.8,
+        "mean_reciprocal_rank": 0.8,
+        "mean_judged_precision": 0.9166666666666666,
+        "forbidden_violations": 0,
+        "negative_violations": 0
+      },
+      "context": {
+        "cases": 8,
+        "errors": 0,
+        "quality_passes": 8,
+        "mean_recall_at_5": 0.96875,
+        "mean_recall_at_10": 1.0,
+        "mean_recall": 1.0,
+        "mean_reciprocal_rank": 1.0,
+        "mean_judged_precision": 0.3806013431013431,
+        "forbidden_violations": 0,
+        "negative_violations": 0
+      }
+    }
+  }
+}
