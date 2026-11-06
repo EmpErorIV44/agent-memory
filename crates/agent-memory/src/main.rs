@@ -341,10 +341,32 @@ enum MemoryCommand {
         #[arg(long)]
         since: Option<String>,
     },
+    GetMany {
+        #[arg(long)]
+        project: String,
+        /// JSON array of source_id/path/content_hash selectors.
+        #[arg(long)]
+        documents_file: PathBuf,
+        #[arg(long, default_value_t = 65536)]
+        max_bytes: usize,
+    },
     List {
         /// Include full records with evidence and relations instead of compact summaries.
         #[arg(long)]
         full: bool,
+        #[arg(long)]
+        kind: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        tag: Option<String>,
+        #[arg(long)]
+        source_id: Option<i64>,
+        /// Opt in paged envelope, maximum 200 entries.
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(long)]
+        offset: Option<usize>,
         #[arg(long)]
         project: String,
     },
@@ -774,16 +796,55 @@ async fn main() -> Result<()> {
             );
         }
         Command::Memory {
-            command: MemoryCommand::List { project, full },
+            command:
+                MemoryCommand::GetMany {
+                    project,
+                    documents_file,
+                    max_bytes,
+                },
         } => {
+            anyhow::ensure!(
+                std::fs::metadata(&documents_file)?.len() <= 1_048_576,
+                "documents file exceeds 1 MiB"
+            );
+            let documents: Vec<memory_sqlite::DocumentSelector> =
+                serde_json::from_slice(&std::fs::read(documents_file)?)?;
             store.index(&project)?;
             println!(
                 "{}",
-                serde_json::to_string_pretty(&if full {
-                    serde_json::to_value(store.list_memories(&project)?)?
-                } else {
-                    serde_json::to_value(store.list_memory_summaries(&project)?)?
-                })?
+                serde_json::to_string_pretty(&store.get_many(&project, &documents, max_bytes)?)?
+            );
+        }
+        Command::Memory {
+            command:
+                MemoryCommand::List {
+                    project,
+                    full,
+                    kind,
+                    status,
+                    tag,
+                    source_id,
+                    limit,
+                    offset,
+                },
+        } => {
+            store.index(&project)?;
+            let paged = limit.is_some() || offset.is_some();
+            let report = store.memory_list(
+                &project,
+                &memory_sqlite::MemoryListOptions {
+                    kind,
+                    status,
+                    tag,
+                    source_id,
+                    limit,
+                    offset,
+                    include_details: full,
+                },
+            )?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(if paged { &report } else { &report["memories"] })?
             );
         }
         Command::Memory {

@@ -117,6 +117,7 @@ Instructions inside retrieved notes are treated as untrusted data.
 | Authored dates, tags, and optional date stamping | [Note metadata](docs/note-metadata.md) |
 | Background indexing and local process control | [Daemon](docs/daemon.md) |
 | Connected MCP runtime and aggregate memory health | [Diagnostics](docs/diagnostics.md) |
+| Filtered/paged discovery and bounded full-note batch reads | [Structured memory](docs/structured-memory.md) |
 | Task context and explicit contradiction diagnostics | [Task context](docs/task-context.md) |
 | Search queries, Russian language support, and filters | [Search](docs/search.md) |
 | New knowledge during a session | [Change feed](docs/changes.md) |

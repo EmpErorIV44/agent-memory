@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add kind/status/exact-tag/source filters and opt-in limit/offset pagination to
+  CLI/MCP memory lists, retaining legacy unpaged output and full-record access.
+- Add CLI `memory get-many` and MCP `memory_get_many` for ordered hash-checked
+  full-note reads within a total JSON byte budget, with explicit per-item
+  omissions and unavailable results; never silently truncate documents.
+
 ## 0.3.1 — 2026-11-06
 
 - Default successful MCP responses to a single structured payload. Add

@@ -158,3 +158,19 @@ Connections negotiating a protocol older than 2025-06-18 automatically use one
 JSON text copy when the configured format is structured, since structured tool
 results were introduced in that protocol revision. Explicit text/both settings
 remain available. Runtime info reports the effective format for that connection.
+
+## Filtered discovery and bounded batch reads
+
+When supported, memory_list accepts kind/status/tag/source_id filters. Use limit
+and offset to opt into pagination; follow next_offset while has_more=true when
+all matching constraints/preferences are required. Without paging parameters the
+legacy full list remains available. Pages are not snapshots; concurrent edits can
+shift offsets. Full details remain opt-in.
+
+Use memory_get_many(project, documents, max_bytes) for 1..50 selected full-note
+reads within a compact JSON byte budget (default 65536, 4096..1048576). Selectors
+contain source_id/path/current content_hash. Only results with status=ok include
+complete Markdown. Retry omitted_budget items with more budget/fewer notes, and
+refresh coordinates for unavailable items. Never count omissions as full reads
+or use them to reconstruct a guarded write. Complete=true means all requested
+notes were returned, not an atomic snapshot or verified claim truth.

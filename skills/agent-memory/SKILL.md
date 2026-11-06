@@ -278,3 +278,19 @@ name. Reuse memory.kind/status/evidence/relations rather than duplicating them.
 When supported, opt in with memory_write stamp_metadata=true to maintain UTC dates.
 Stamping may normalize frontmatter; default writes and historical restores retain
 their exact-content contracts. Document metadata is not authorization or proof.
+
+## Filtered discovery and bounded batch reads
+
+When supported, memory_list accepts kind/status/tag/source_id filters. Use limit
+and offset to opt into pagination; follow next_offset while has_more=true when
+all matching constraints/preferences are required. Without paging parameters the
+legacy full list remains available. Pages are not snapshots; concurrent edits can
+shift offsets. Full details remain opt-in.
+
+Use memory_get_many(project, documents, max_bytes) for 1..50 selected full-note
+reads within a compact JSON byte budget (default 65536, 4096..1048576). Selectors
+contain source_id/path/current content_hash. Only results with status=ok include
+complete Markdown. Retry omitted_budget items with more budget/fewer notes, and
+refresh coordinates for unavailable items. Never count omissions as full reads
+or use them to reconstruct a guarded write. Complete=true means all requested
+notes were returned, not an atomic snapshot or verified claim truth.

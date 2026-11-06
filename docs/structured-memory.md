@@ -198,3 +198,77 @@ SQLite v1 → v2 migration runs when the database is opened by the newer applica
 An old v1 MCP process cannot open v2: restart the MCP client after updating the
 binary. [Durable revision history](revisions.md) is stored in the source separately
 from the index and is available through CLI and MCP.
+
+## Filter and page memory lists
+
+MCP `memory_list` accepts optional `kind`, `status`, `tag` and `source_id` filters.
+Filters combine with AND; `tag` is one exact, case-sensitive tag, not a substring
+or FTS query. Only readable project sources and that project's structured memories
+are eligible. Invalid kind/status values and empty tags are rejected.
+
+```json
+{"project":"banking","kind":"constraint","status":"accepted","tag":"auth","limit":20,"offset":0}
+```
+
+`limit` (1..200) or `offset` opts into pagination, ordered by logical Memory ID.
+Offset-only requests default to 50 entries. The response retains `memories` and
+adds `limit`, `offset`, `has_more`, and `next_offset` (null at the end). Filters
+apply before pagination. Follow `next_offset` until `has_more` is false when a
+complete filtered list is required. Pages are live observations, not a snapshot;
+edits between requests can shift offsets. Restart listing if consistency matters.
+
+Without either paging parameter the previous unbounded envelope is retained.
+`include_details: true` applies the same filters/page to full records, loading
+evidence/relations only for selected entries. No total-count query is performed.
+
+CLI accepts the same flags, with `--full` for details:
+
+```sh
+agent-memory memory list --project banking --kind constraint --status accepted \
+  --tag auth --limit 20 --offset 0
+```
+
+CLI preserves its legacy array output without paging flags. With `--limit` or
+`--offset`, it emits the same paginated envelope as MCP. All filters are optional;
+`--source-id` scopes a list to one readable source.
+
+## Read several complete documents with one budget
+
+MCP `memory_get_many` accepts 1..50 unique `documents` selectors from list/search
+coordinates and an optional `max_bytes` (4096..1048576, default 65536):
+
+```json
+{"project":"banking","documents":[{"source_id":1,"path":"decisions/auth.md","content_hash":"<full SHA-256>"}],"max_bytes":65536}
+```
+
+This operation refreshes the project index once, then checks each selector through
+the same source/path/current-hash read used by `memory_get`. It accepts path
+selectors only, not chunk IDs. CLI reads the selector array from a file:
+
+```sh
+agent-memory memory get-many --project banking --documents-file selectors.json \
+  --max-bytes 65536
+```
+
+`results` follows input order; each row contains its zero-based input `index` and:
+
+- `status: "ok"` plus `document`, containing the complete Markdown and metadata.
+- `status: "omitted_budget"` with no document text. Retry selected omissions with
+  a larger budget or fewer documents, or use ordinary `memory_get`.
+- `status: "unavailable"` for missing, inaccessible, stale or unreadable documents.
+  These cases intentionally share one response. Refresh discovery coordinates
+  before retrying; the batch does not claim to have read these notes.
+
+No document is truncated or replaced by an excerpt. A large omitted document does
+not prevent later smaller documents from fitting. `omitted_count` and
+`unavailable_count` count each category; `complete` is true only when every item
+returned a full document. This is a sequence of hash-checked reads, not an atomic
+snapshot, and it does not establish truth or semantic consistency.
+
+`used_bytes` is the exact UTF-8 size of the compact JSON report, including result
+metadata, omissions and the counter itself, and is at most `max_bytes`. This is
+not a token estimate, an input/file-I/O limit, or a limit on MCP envelopes, CLI
+pretty-printing, or duplicated compatibility output in `--response-format both`.
+An invalid/duplicate selector or out-of-range budget fails the whole request;
+per-document failures are retained as `unavailable`. Required complete-note reads
+are satisfied only by `ok` entries, never by an omitted/unavailable result.

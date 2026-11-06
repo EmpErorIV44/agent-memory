@@ -60,7 +60,7 @@ for request_id in (1, 2, 3, 4, 5, 6, 7, 8):
     if request_id not in responses or "error" in responses[request_id]:
         raise SystemExit(f"Request {request_id} failed: {responses.get(request_id)}")
 tools = {tool["name"] for tool in responses[2]["result"]["tools"]}
-required = {"memory_health", "memory_runtime_info", "memory_batch_write", "memory_batch_write_operations", "memory_batch_write_resume", "memory_context", "memory_contradictions", "memory_search", "memory_get", "memory_sources", "memory_list", "memory_links",
+required = {"memory_get_many", "memory_health", "memory_runtime_info", "memory_batch_write", "memory_batch_write_operations", "memory_batch_write_resume", "memory_context", "memory_contradictions", "memory_search", "memory_get", "memory_sources", "memory_list", "memory_links",
             "memory_get_record", "memory_history", "memory_revision_get",
             "memory_write", "memory_restore", "memory_sync_status",
             "memory_changes", "memory_freshness", "memory_pull",

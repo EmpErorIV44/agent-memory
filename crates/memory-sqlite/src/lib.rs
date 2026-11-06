@@ -8,6 +8,8 @@ pub use batch::{BatchEdit, BatchPlan, BatchResult};
 mod changes;
 pub mod config;
 mod context;
+mod discovery;
+pub use discovery::{DocumentSelector, MemoryListOptions};
 mod index;
 mod links;
 pub use changes::{Change, Changes};
