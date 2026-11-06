@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 — 2026-11-06
 
 - Add kind/status/exact-tag/source filters and opt-in limit/offset pagination to
   CLI/MCP memory lists, retaining legacy unpaged output and full-record access.
