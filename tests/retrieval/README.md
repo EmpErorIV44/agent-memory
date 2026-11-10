@@ -54,3 +54,27 @@ formatting and strict Clippy passed. The workspace regression required permissio
 for temporary local Unix sockets. Five independent budget regressions cover long
 constraints, oversized metadata, Unicode/escaping, source isolation and task-term
 coverage. These are source changes; the installed MCP process was not upgraded.
+
+## Explicit natural search, 2026-11-06
+
+The same-binary [FTS report](search-fts.md) and [natural report](search-natural.md)
+have companion JSON files with full rankings. All fixture fingerprints match the
+original baseline. Explicit literal cases retain phrase mode in both runs.
+
+| Metric | FTS | Natural |
+| --- | --- | --- |
+| Search cases passing | 18/23 | 22/23 |
+| Macro recall@5 and @10 (22 positive cases) | 77.3% | 95.5% |
+| Mean reciprocal rank | 0.773 | 0.924 |
+| Mean judged precision | 93.1% | 56.1% |
+| Returned search documents | 20 | 95 |
+| Returned documents without a relevant label | 3 | 74 |
+| Forbidden / negative violations / operational errors | 0 / 0 / 0 | 0 / 0 / 0 |
+| Context cases passing | 13/13 | 13/13 |
+
+All FTS and context ordered document results match the balanced-context report.
+Natural recovers four of the five previous paraphrase misses; `ru-money-synonym`
+still misses the expected note and returns four unlabeled notes. More recall
+comes with more noise: judged labels are incomplete, but the increased returned
+set and lower judged precision are material limitations. This remains an explicit
+lexical alternative, not a semantic search claim or a change to default FTS.

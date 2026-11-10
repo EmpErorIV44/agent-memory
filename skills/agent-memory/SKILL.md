@@ -43,10 +43,23 @@ project's baseline memory; do not wait for a task-specific search to reveal it.
 1. Resolve the project from the user's choice or explicit workspace mapping,
    and check it against the server's allowed projects.
    If the mapping is ambiguous, ask; do not choose an unrelated allowed project.
-2. Start with `memory_list` and inspect accepted constraints and recorded user
+2. When supported, call `memory_bootstrap(project, task?, max_bytes?, fetch?)`.
+   Inspect every baseline status and `baseline_complete`; only `ok` documents
+   count as full reads. Complete omitted/unavailable reads through existing tools.
+   `recall:always` marks the short required core; `recall:task` defers preferences
+   until task matching (at most3 by default, `preference_limit`0..20). Unmarked
+   accepted constraints/preference-tagged notes retain their legacy required
+   behavior. Inspect `preferences.entries` statuses and complete selected full
+   reads; do not enumerate/read all deferred preferences at startup. Review task excerpts/omissions separately, use the returned
+   cursor for later change polls, and inspect per-source freshness. `fetch` is
+   false by default; request true only when remote access is authorized. This is
+   not an atomic snapshot, semantic validation or a new permission. When using
+   bootstrap, the equivalent full baseline reads and cursor setup need not be
+   repeated. Discover other relevant preferences explicitly if not structured.
+   If bootstrap is unavailable, start with `memory_list` and inspect accepted constraints and recorded user
    preferences. `memory_get_record` reads a structured record by its logical ID;
    neither tool returns the full source Markdown.
-3. Read the relevant complete documents with
+3. For relevant documents not already returned in full, read complete documents with
    `memory_get(project, source_id, path, content_hash)` using coordinates from
    the list. It returns `document.content` and the full `document.content_hash`.
    Use `memory_search` for additional context or unstructured notes, then
@@ -122,6 +135,9 @@ Search includes path, document/Memory IDs and Memory summary alongside text.
 Russian search uses Snowball stemming, with exact matches ranked first. Use
 optional kind/status filters for structured knowledge owned by this project.
 Cyrillic prefix queries such as `правил*` retain literal prefix semantics.
+Queries default to FTS5 syntax. When supported, set `mode: "natural"` for ordinary
+word queries ranked by coverage and exactness; it does not provide synonyms or
+semantic matching and cannot combine with `literal: true`.
 Queries use FTS5 syntax. Double-quote literal terms containing punctuation such
 as hyphens, colons, dots or slashes; double any embedded `"` inside the quoted
 term. Preserve punctuation rather than deleting it. Keep intentional operators

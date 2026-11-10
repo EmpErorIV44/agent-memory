@@ -172,6 +172,17 @@ impl Store {
     /// Conservative byte-based token budget for the complete serialized JSON response.
     /// Every UTF-8 byte counts as one token; this is not a model-specific tokenizer.
     pub fn task_context(&self, project: &str, task: &str, max_tokens: usize) -> Result<Value> {
+        self.task_context_excluding(project, task, max_tokens, &HashSet::new())
+    }
+
+    /// Assemble general excerpts without rereading documents managed separately by bootstrap.
+    pub fn task_context_excluding(
+        &self,
+        project: &str,
+        task: &str,
+        max_tokens: usize,
+        excluded: &HashSet<(i64, String)>,
+    ) -> Result<Value> {
         ensure!(
             (512..=32768).contains(&max_tokens),
             "max_tokens must be between 512 and 32768"
@@ -205,7 +216,9 @@ impl Store {
         let mut candidates = Vec::new();
         let mut seen = HashSet::new();
         for record in records.iter().filter(|r| {
-            r.memory.kind == MemoryKind::Constraint && r.memory.status == MemoryStatus::Accepted
+            r.memory.kind == MemoryKind::Constraint
+                && crate::recall::required(r)
+                && !excluded.contains(&(r.source_id, r.path.clone()))
         }) {
             if seen.insert(record.document_id) {
                 candidates.push((
@@ -218,6 +231,9 @@ impl Store {
             }
         }
         for hit in hits {
+            if excluded.contains(&(hit.source_id, hit.path.clone())) {
+                continue;
+            }
             if by_doc.get(&hit.document_id).is_some_and(|r| !active(r)) {
                 continue;
             }
@@ -249,6 +265,9 @@ impl Store {
         }
         for id in related_ids {
             let record = by_doc[&id];
+            if excluded.contains(&(record.source_id, record.path.clone())) {
+                continue;
+            }
             if seen.insert(id) {
                 candidates.push((
                     record.source_id,

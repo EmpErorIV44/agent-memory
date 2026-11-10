@@ -6,6 +6,14 @@ use rust_stemmers::{Algorithm, Stemmer};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchMode {
+    #[default]
+    Fts,
+    Natural,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SearchOptions {
@@ -15,6 +23,7 @@ pub struct SearchOptions {
     pub limit: usize,
     /// Treat the whole query as one FTS5 phrase, rather than an expression.
     pub literal: bool,
+    pub mode: SearchMode,
 }
 
 impl Default for SearchOptions {
@@ -24,6 +33,7 @@ impl Default for SearchOptions {
             status: None,
             limit: 50,
             literal: false,
+            mode: SearchMode::Fts,
         }
     }
 }
@@ -161,6 +171,24 @@ pub(crate) fn search_filtered(
         (1..=50).contains(&options.limit),
         "Search limit must be between 1 and 50"
     );
+    ensure!(
+        !(options.literal && options.mode == SearchMode::Natural),
+        "natural mode cannot be combined with literal"
+    );
+    if options.mode == SearchMode::Natural {
+        return search_natural(connection, project_id, query, options);
+    }
+    let mut hits = search_ranked(connection, project_id, query, options)?;
+    hits.truncate(options.limit);
+    Ok(hits)
+}
+
+fn search_ranked(
+    connection: &Connection,
+    project_id: i64,
+    query: &str,
+    options: &SearchOptions,
+) -> Result<Vec<SearchHit>> {
     let literal_query;
     let query = if options.literal {
         literal_query = format!("\"{}\"", query.replace('"', "\"\""));
@@ -229,9 +257,96 @@ pub(crate) fn search_filtered(
             .then_with(|| a.path.cmp(&b.path))
             .then_with(|| a.start_line.cmp(&b.start_line))
     });
-    Ok(hits
-        .into_iter()
-        .take(options.limit)
-        .map(|(hit, _)| hit)
-        .collect())
+    Ok(hits.into_iter().map(|(hit, _)| hit).collect())
+}
+
+/// Safe word queries reuse project-scoped FTS eligibility and ranking. Per-word
+/// matches count index tokens, including metadata, rather than substring matches.
+fn search_natural(
+    connection: &Connection,
+    project_id: i64,
+    query: &str,
+    options: &SearchOptions,
+) -> Result<Vec<SearchHit>> {
+    ensure!(
+        query.len() <= 8192,
+        "Natural query must be at most 8192 UTF-8 bytes"
+    );
+    let terms: std::collections::BTreeSet<String> = query
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .map(str::to_lowercase)
+        .collect();
+    ensure!(
+        terms.len() <= 128,
+        "Natural query must contain at most 128 distinct words"
+    );
+    if terms.is_empty() {
+        return Ok(Vec::new());
+    }
+    let expression = terms
+        .iter()
+        .map(|s| format!("\"{s}\""))
+        .collect::<Vec<_>>()
+        .join(" OR ");
+    // Retrieve all eligible candidates before applying the public result limit.
+    // The shared FTS helper deliberately has no SQL limit.
+    let mut lexical = options.clone();
+    lexical.mode = SearchMode::Fts;
+    lexical.limit = 50;
+    let mut hits = search_ranked(connection, project_id, &expression, &lexical)?;
+    let mut coverage: HashMap<i64, (usize, usize)> = HashMap::new();
+    let mut document_coverage: HashMap<i64, (usize, usize)> = HashMap::new();
+    let mut normalized_terms = HashSet::new();
+    for term in terms {
+        let quoted = format!("\"{term}\"");
+        let normalized = russian(&quoted);
+        for (table, expression, exact) in [
+            ("search_russian_fts", normalized.as_str(), false),
+            ("search_exact_fts", quoted.as_str(), true),
+        ] {
+            if !exact && !normalized_terms.insert(expression.to_owned()) {
+                continue;
+            }
+            let mut statement = connection.prepare(&format!(
+                "SELECT chunk_id,c.document_id FROM {table} JOIN document_chunks c ON c.id={table}.chunk_id WHERE {table} MATCH ?1 AND project_id=?2"
+            ))?;
+            let ids = statement.query_map(params![expression, project_id], |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?))
+            })?;
+            let mut documents = HashSet::new();
+            for id in ids {
+                let (chunk_id, document_id) = id?;
+                documents.insert(document_id);
+                let counts = coverage.entry(chunk_id).or_default();
+                if exact {
+                    counts.1 += 1;
+                } else {
+                    counts.0 += 1;
+                }
+            }
+            for document in documents {
+                let counts = document_coverage.entry(document).or_default();
+                if exact {
+                    counts.1 += 1;
+                } else {
+                    counts.0 += 1;
+                }
+            }
+        }
+    }
+    // Stable sort retains exact/BM25/path ordering for equal coverage.
+    hits.sort_by_key(|hit| {
+        std::cmp::Reverse((
+            document_coverage
+                .get(&hit.document_id)
+                .copied()
+                .unwrap_or_default(),
+            coverage.get(&hit.chunk_id).copied().unwrap_or_default(),
+        ))
+    });
+    let mut seen = HashSet::new();
+    hits.retain(|hit| seen.insert(hit.document_id));
+    hits.truncate(options.limit);
+    Ok(hits)
 }

@@ -13,8 +13,20 @@ At the first connection in each new session, before substantive project work,
 bootstrap project memory. Use the workspace's explicitly configured project;
 the allowed-project list alone does not establish the workspace mapping. Ask if
 the mapping is ambiguous, and never request a project outside the allowed list.
-Start with memory_list and inspect accepted constraints and user preferences.
-Read relevant full documents with memory_get(project, source_id, path,
+When available, use memory_bootstrap(project, task?, max_bytes?, fetch?) once.
+Only baseline entries with status=ok contain full notes; inspect baseline_complete
+and complete omitted_budget/unavailable reads before relying on that baseline.
+recall:always marks the short required core; recall:task marks preferences selected
+for the task (default at most3; preference_limit0..20). Unmarked accepted
+constraints/preference-tagged notes keep their legacy baseline behavior. Inspect
+preferences.entries statuses and complete selected full reads, but do not enumerate
+or read every deferred preference at session start. Discover other relevant
+preferences when task scope changes. Inspect task omissions
+and per-source freshness; fetch defaults false and requires network authorization
+when true. Use its cursor for subsequent memory_changes. It is not an atomic
+snapshot or evidence validation. Do not repeat equivalent full reads/cursor setup.
+If bootstrap is unavailable, start with memory_list and inspect accepted constraints and user preferences.
+Read missing or additional full documents with memory_get(project, source_id, path,
 content_hash), using the source coordinates and full-document hash from the list.
 memory_get_record returns structured knowledge, not the full Markdown document.
 Use memory_search for additional context or unstructured notes; chunk-based

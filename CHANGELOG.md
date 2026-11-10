@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.4.0 — 2026-11-10
+
+- Split bootstrap recall into an explicit always-read core and bounded task
+  preferences with topic triggers, full-read statuses and a 0..20 preference limit;
+  preserve legacy unmarked rules and keep deferred notes out of general excerpts.
+
+- Add CLI/MCP project bootstrap: full accepted constraints and tagged preferences,
+  optional task excerpts, per-source Git freshness and a changes cursor, bounded
+  by one compact JSON byte budget with explicit read and omission statuses.
+
+- Add CLI search `--paths-only` for unique source-relative paths in search order.
+
+- Add explicit CLI/MCP natural search mode ranked by query-word coverage and
+  exactness, preserving default FTS semantics and literal phrase searches.
+
 - Add frozen synthetic English/Russian retrieval corpora and an isolated CLI
   evaluation runner with reproducible quality reports and input fingerprints.
 - Balance context budgets between short constraint and task excerpts before

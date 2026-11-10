@@ -15,7 +15,9 @@ mod links;
 pub use changes::{Change, Changes};
 pub use links::{DocumentLinks, LinkDocument, LinkRecord};
 mod memories;
+mod recall;
 mod registry;
+pub use recall::{RecallPlan, RecallRecord};
 mod rename;
 mod revisions;
 mod search_metadata;
@@ -23,7 +25,7 @@ mod semantic;
 pub use memories::{MemoryRecord, MemorySummary, MemorySummaryMetadata};
 pub use memory_core::{Revision, RevisionDocument};
 pub use rename::{RenameEdit, RenameOperation, RenamePlan, RenameResult};
-pub use search_metadata::SearchOptions;
+pub use search_metadata::{SearchMode, SearchOptions};
 pub use semantic::{reciprocal_rank_fusion, HybridHit, SemanticCandidate, SemanticHit};
 
 pub const SCHEMA_VERSION: i64 = 8;

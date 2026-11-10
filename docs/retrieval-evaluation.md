@@ -63,3 +63,12 @@ project leakage. Context budget validation checks both the reported estimate and
 the independently serialized compact JSON UTF-8 byte length. Optional `--fail-on-miss` returns
 1 for quality gaps if there are no operational errors. No retrieval implementation
 is changed by this tool.
+
+## Comparing natural queries
+
+Run the same frozen suites with `--search-mode natural` and a separate output
+path. Only non-literal search cases use natural mode; explicitly labeled literal
+phrase cases retain their phrase contract. Context cases remain unchanged.
+The report records `search_mode`; compare input hashes, complete ordered rankings,
+judged precision, forbidden returns, recall and operational errors with an FTS run
+of the same binary. Do not edit fixtures or labels to improve a score.

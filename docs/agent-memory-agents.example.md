@@ -10,8 +10,15 @@ the task scope changes. Do not repeat bootstrap on every skill invocation.
 Unrelated conversation without relevant project knowledge needs no memory calls.
 Use the workspace's explicitly configured project; ask when the mapping is unclear.
 At the first connection in each new session, before substantive project work,
-start with memory_list for accepted constraints and preferences, then read the
-relevant full documents with memory_get(project, source_id, path, content_hash).
+use memory_bootstrap when supported. Inspect baseline_complete and each baseline
+status, complete omitted/unavailable full reads, and retain the returned changes
+cursor. Use a short recall:always core and task-matched recall:task preferences;
+inspect selected preference read statuses. Do not enumerate all deferred
+preferences at startup. Legacy unmarked baseline notes keep previous behavior;
+discover other relevant preferences as task scope changes. Cached freshness is not
+a remote check; optional fetch needs authorization. Without bootstrap, start with
+memory_list for accepted constraints and preferences, then read the relevant full
+documents with memory_get(project, source_id, path, content_hash).
 memory_get_record returns structured knowledge, not full Markdown. Search for
 additional context or unstructured notes; use memory_sources when source rights
 or a writable destination are needed. Russian search uses Snowball stemming and

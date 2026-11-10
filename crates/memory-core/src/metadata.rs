@@ -334,6 +334,21 @@ pub fn parse_metadata(text: &str) -> Result<DocumentMetadata> {
         ensure!(!tag.is_empty() && tag.trim() == tag && tag.len() <= 128 && !tag.chars().any(char::is_control), "tags must be nonempty unpadded strings of at most 128 bytes without control characters");
         ensure!(tags.insert(tag), "duplicate document tag");
     }
+    ensure!(
+        !(metadata.tags.iter().any(|tag| tag == "recall:always")
+            && metadata.tags.iter().any(|tag| tag == "recall:task")),
+        "recall:always and recall:task cannot be combined"
+    );
+    if metadata.tags.iter().any(|tag| tag == "recall:task") {
+        ensure!(
+            metadata
+                .tags
+                .iter()
+                .filter_map(|tag| tag.strip_prefix("topic:"))
+                .all(|topic| topic.chars().any(char::is_alphanumeric)),
+            "topic tags must contain at least one word"
+        );
+    }
     Ok(metadata)
 }
 

@@ -96,3 +96,53 @@ and document IDs, paths, excerpts, line numbers and full-document `content_hash`
 No matches produce `{"hits":[]}`; errors still fail the command. Without `--json`,
 the existing human-readable CLI format is retained. CLI search still reads the
 current index; these flags do not trigger indexing.
+
+## Ordinary word queries
+
+FTS remains the default (`--mode fts`, MCP `mode: "fts"`). Select natural mode
+explicitly when the input is an ordinary question rather than an FTS expression:
+
+```sh
+agent-memory search --project demo --mode natural --json 'avoid charging a merchant twice after a timeout'
+```
+
+```json
+{"project":"demo","query":"avoid charging a merchant twice after a timeout","mode":"natural","limit":5}
+```
+
+Natural mode splits on non-alphanumeric characters, lowercases and deduplicates
+words, and safely quotes them into an OR query. Operators, quotes, punctuation
+and `*` have no special meaning. It accepts at most 8192 UTF-8 bytes and 128
+distinct words; empty or punctuation-only input returns no hits. `literal: true`
+cannot be combined with natural mode.
+
+Candidates use the existing readable-project index and kind/status filters.
+Documents rank by distinct normalized query words covered across all their chunks,
+then distinct original words covered. Within equal document coverage, chunk
+coverage and existing exact/BM25/path/line ordering choose a representative.
+Natural mode returns one best chunk per document. Coverage includes
+indexed metadata as well as headings and body; the result remains a real source
+chunk with a full-document hash. The limit applies after ranking all candidates.
+Russian Snowball stemming is retained; English words are not stemmed. There are
+no synonyms, stop-word removal, embeddings or model calls. Common words can
+produce many weak matches, and lexical retrieval cannot guarantee recovery of
+paraphrases with no shared words. Existing FTS and context behavior are unchanged.
+
+## Paths for scripts
+
+Use `--paths-only` to print unique source-relative paths, one per line, in the
+order of their first search hit:
+
+```sh
+agent-memory search --project demo --paths-only 'backup OR recovery'
+agent-memory search --project demo --mode natural --paths-only 'database recovery'
+```
+
+No hits produce empty stdout with exit status 0. The flag works with either search
+mode, literal phrases, filters and `--limit`, and cannot combine with `--json`.
+Deduplication happens after the search limit: FTS limits chunks, so several hits
+from one document may produce fewer paths than the requested limit. Paths are
+relative to each hit's source; identical paths across sources collapse to one
+line. Use JSON when source IDs or full identity matter. Line-delimited output
+assumes filenames without newline characters; JSON preserves arbitrary filenames.
+MCP already returns paths and source IDs in structured hits.

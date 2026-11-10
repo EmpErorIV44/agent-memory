@@ -87,7 +87,9 @@ def invoke(binary, args, cwd):
     return process.stdout
 
 
-def evaluate(binary, fixtures):
+def evaluate(binary, fixtures, search_mode="fts"):
+    if search_mode not in ("fts", "natural"):
+        raise ValueError("search_mode must be fts or natural")
     binary = binary.resolve()
     suites = sorted(p.parent for p in fixtures.glob('*/cases.json'))
     if not suites:
@@ -101,7 +103,7 @@ def evaluate(binary, fixtures):
             inputs.add(suite / 'README.md')
         inputs.update(p for p in (suite / 'notes').rglob('*') if p.is_file())
     hashes = {str(p.relative_to(fixtures)): digest(p) for p in sorted(inputs)}
-    report = {'binary_version': version, 'binary_sha256': digest(binary),
+    report = {'search_mode': search_mode, 'binary_version': version, 'binary_sha256': digest(binary),
               'fixture_sha256': hashes, 'suite_count': len(loaded),
               'note_count': sum(len(list((suite / 'notes').rglob('*.md'))) for suite, _ in loaded),
               'method': 'document deduplication; search top 50 chunks then document ranks; context full returned set',
@@ -131,6 +133,8 @@ def evaluate(binary, fixtures):
                         for key in ('kind', 'status'):
                             if key in case:
                                 args.extend(['--' + key, case[key]])
+                        if search_mode == 'natural' and not case.get('literal'):
+                            args.extend(['--mode', 'natural'])
                         if case.get('literal'):
                             args.append('--literal')
                         args.extend(['--', case['query']])
@@ -187,7 +191,7 @@ def summarize(rows):
 def markdown(report):
     def cell(value):
         return str(value).replace('|', '\\|').replace('\n', ' ')
-    lines = ['# Synthetic retrieval evaluation', '', report['binary_version'], '', report['warning'], '',
+    lines = ['# Synthetic retrieval evaluation', '', report['binary_version'], '', f"Search mode: {report.get('search_mode', 'fts')} (literal cases retain phrase mode)", '', report['warning'], '',
              '| Suite | Case | Mode | Recall@5 | Recall@10 | Recall | Forbidden | Error |',
              '| --- | --- | --- | --- | --- | --- | --- | --- |']
     for row in report['cases']:
@@ -205,9 +209,10 @@ def main(argv=None):
     parser.add_argument('--fixtures', type=Path, default=ROOT / 'tests/retrieval')
     parser.add_argument('--output', type=Path, help='JSON file; companion Markdown uses the .md suffix')
     parser.add_argument('--fail-on-miss', action='store_true')
+    parser.add_argument('--search-mode', choices=['fts', 'natural'], default='fts')
     args = parser.parse_args(argv)
     try:
-        report = evaluate(args.binary, args.fixtures.resolve())
+        report = evaluate(args.binary, args.fixtures.resolve(), args.search_mode)
         if args.output:
             if args.output.suffix != '.json':
                 raise ValueError('--output must end in .json')

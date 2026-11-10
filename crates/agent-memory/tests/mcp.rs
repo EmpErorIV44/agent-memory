@@ -62,6 +62,7 @@ async fn scenario() -> Result<()> {
         [
             "memory_batch_write",
             "memory_batch_write_operations",
+            "memory_bootstrap",
             "memory_changes",
             "memory_context",
             "memory_contradictions",

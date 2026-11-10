@@ -118,6 +118,24 @@ class RetrievalEvaluationTests(unittest.TestCase):
             with patch.object(evaluation, 'invoke', side_effect=fake_invoke):
                 rerun = evaluation.evaluate(binary, root / 'fixtures')
             self.assertEqual(result['fixture_sha256'], rerun['fixture_sha256'])
+            seen.clear()
+            with patch.object(evaluation, 'invoke', side_effect=fake_invoke):
+                natural = evaluation.evaluate(binary, root / 'fixtures', 'natural')
+            self.assertEqual(natural['search_mode'], 'natural')
+            self.assertEqual(natural['fixture_sha256'], result['fixture_sha256'])
+            searches = [args for args in seen if 'search' in args]
+            self.assertEqual(searches[0][searches[0].index('--mode') + 1], 'natural')
+            search['literal'] = True
+            (suite / 'cases.json').write_text(json.dumps([search, context]))
+            seen.clear()
+            with patch.object(evaluation, 'invoke', side_effect=fake_invoke):
+                evaluation.evaluate(binary, root / 'fixtures', 'natural')
+            searches = [args for args in seen if 'search' in args]
+            self.assertIn('--literal', searches[0])
+            self.assertNotIn('--mode', searches[0])
+            search.pop('literal')
+            (suite / 'cases.json').write_text(json.dumps([search, context]))
+
             self.assertEqual(result['note_count'], 2)
             self.assertEqual(result['suite_count'], 1)
             original_fake = fake_invoke

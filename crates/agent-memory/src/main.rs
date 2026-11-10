@@ -1,4 +1,5 @@
 mod backup;
+mod bootstrap;
 mod config;
 mod daemon;
 mod daemon_ipc;
@@ -69,6 +70,20 @@ enum Command {
         project: String,
         #[arg(long)]
         source_id: i64,
+    },
+    /// Load full accepted baseline notes, optional task context and freshness (compact JSON).
+    Bootstrap {
+        #[arg(long)]
+        project: String,
+        #[arg(long, default_value_t = bootstrap::DEFAULT_MAX_BYTES)]
+        max_bytes: usize,
+        /// Maximum matching task preferences read in full (0..20).
+        #[arg(long, default_value_t = bootstrap::DEFAULT_PREFERENCE_LIMIT)]
+        preference_limit: usize,
+        /// Contact Git remotes; cached freshness is used by default. Never pulls.
+        #[arg(long)]
+        fetch: bool,
+        task: Option<String>,
     },
     /// Assemble task context within a conservative token budget (JSON).
     Context {
@@ -281,9 +296,15 @@ enum Command {
         /// Treat the entire query as a literal token phrase; operators become ordinary text.
         #[arg(long)]
         literal: bool,
+        /// Query interpretation: FTS expression or ordinary words.
+        #[arg(long, default_value = "fts", value_parser = ["fts", "natural"])]
+        mode: String,
         /// Print {"hits": [...]} with paths, line numbers and document hashes.
         #[arg(long)]
         json: bool,
+        /// Print unique source-relative paths, one per line, in search order.
+        #[arg(long, conflicts_with = "json")]
+        paths_only: bool,
         query: String,
     },
 }
@@ -597,6 +618,25 @@ async fn main() -> Result<()> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&store.batch_operations(&project, source_id)?)?
+            );
+        }
+        Command::Bootstrap {
+            project,
+            task,
+            max_bytes,
+            fetch,
+            preference_limit,
+        } => {
+            println!(
+                "{}",
+                serde_json::to_string(&bootstrap::run(
+                    &mut store,
+                    &project,
+                    task.as_deref(),
+                    max_bytes,
+                    fetch,
+                    preference_limit
+                )?)?
             );
         }
         Command::Context {
@@ -960,14 +1000,24 @@ async fn main() -> Result<()> {
             status,
             limit,
             literal,
+            mode,
             json,
+            paths_only,
         } => {
             let mut options =
                 memory_sqlite::SearchOptions::from_filters(kind.as_deref(), status.as_deref())?;
             options.limit = usize::from(limit);
             options.literal = literal;
+            options.mode = serde_json::from_value(serde_json::Value::String(mode))?;
             let hits = store.search_filtered(&project, &query, &options)?;
-            if json {
+            if paths_only {
+                let mut seen = std::collections::HashSet::new();
+                for hit in hits {
+                    if seen.insert(hit.path.clone()) {
+                        println!("{}", hit.path);
+                    }
+                }
+            } else if json {
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&serde_json::json!({ "hits": hits }))?

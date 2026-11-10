@@ -64,8 +64,11 @@ These commands run on Linux, macOS, or WSL. The index defaults to
 to choose another path.
 
 Search returns the note path, line numbers, and matching excerpt.
-Use `search --json` for structured hits, `--limit 5` for fewer results, and
+Use `search --paths-only` for unique paths, `--json` for structured hits,
+`--limit 5` for fewer results, and
 `--literal` for a whole phrase containing punctuation or operator words.
+Use `--mode natural` (MCP `mode: "natural"`) for ordinary word queries ranked by
+word coverage and exactness; FTS remains the default.
 See [search behavior and examples](docs/search.md).
 The CLI reads the current index: run `index` after external changes.
 MCP refreshes the index before searching and reading.
@@ -104,6 +107,13 @@ Writes are disabled by default. To enable them, add
 [integration guide](docs/write-and-agent-behavior.md) covers write policies,
 agent behavior, and the [agent-memory skill](skills/agent-memory/SKILL.md).
 
+Start a project session with `memory_bootstrap` (CLI `bootstrap`) to load full
+accepted constraints/preferences, optional task context, Git freshness and a
+changes cursor in one bounded response. Use a short `recall:always` core and
+`recall:task` preferences to avoid loading every preference at startup; see
+[recall tiers](docs/recall-tiers.md). Inspect incomplete baseline reads and
+cached freshness before proceeding. See [session bootstrap](docs/bootstrap.md).
+
 A typical agent workflow finds past decisions with `memory_search`, reads the
 current note with `memory_get`, and saves an agreed result with `memory_write`.
 Updating a note requires the hash of its complete current document.
@@ -119,6 +129,7 @@ Instructions inside retrieved notes are treated as untrusted data.
 | Connected MCP runtime and aggregate memory health | [Diagnostics](docs/diagnostics.md) |
 | Filtered/paged discovery and bounded full-note batch reads | [Structured memory](docs/structured-memory.md) |
 | Task context and explicit contradiction diagnostics | [Task context](docs/task-context.md) |
+| Initial full baseline, task context, freshness and changes cursor | [Bootstrap](docs/bootstrap.md) |
 | Search queries, Russian language support, and filters | [Search](docs/search.md) |
 | New knowledge during a session | [Change feed](docs/changes.md) |
 | Markdown/wiki links and backlinks | [Note links](docs/links.md) |
