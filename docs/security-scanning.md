@@ -57,6 +57,30 @@ quadratic parsing of nested image wikilinks. Current call sites use
 `Parser::new` without `ENABLE_WIKILINKS`; the advisory identifies that option
 as necessary for exploitation. No advisory suppression was added.
 
+On 2026-11-10, the failures in Actions run `42855613501` were reproduced locally:
+
+- Semgrep rejected a `prepare(&format!(...))` call in natural search. Its table
+  names came from two constants; the query now uses two static SQL statements,
+  keeping search expressions and project IDs as bound parameters.
+- RustSec reported [RUSTSEC-2026-0459](https://rustsec.org/advisories/RUSTSEC-2026-0459.html)
+  for bundled SQLite through `libsqlite3-sys 0.36.0` and
+  [RUSTSEC-2026-0462](https://rustsec.org/advisories/RUSTSEC-2026-0462.html)
+  for `rmcp 3.8.0`.
+  `rusqlite` was upgraded to `0.41.1` (`libsqlite3-sys 0.39.1`) and `rmcp` to
+  `3.9.0`, with corresponding minimum versions in `Cargo.toml` and a refreshed
+  lockfile. No advisory or source-rule suppressions were added.
+
+The SBOM job in that run succeeded: these two advisories have MEDIUM severity,
+below its HIGH/CRITICAL threshold. RustSec remains an independent required check.
+
+Local verification after the fixes: Semgrep CE 1.183.0 found no findings in 37
+production Rust files (checked on an identical source copy in `/tmp` to avoid
+slow WSL filesystem traversal); both rule tests passed. Cargo-audit 0.22.2 found
+no vulnerabilities in 174 dependencies against the RustSec snapshot retrieved
+on 2026-11-10; the existing unmaintained warning remains visible. Workspace
+tests, strict Clippy, formatting, and release-packaging tests passed. These local
+results do not establish a successful remote Actions run for the changes.
+
 ## Access and limitations
 
 Scanning does not require a Semgrep account, service API tokens, or a paid GitHub

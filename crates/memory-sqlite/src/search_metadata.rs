@@ -301,16 +301,22 @@ fn search_natural(
     for term in terms {
         let quoted = format!("\"{term}\"");
         let normalized = russian(&quoted);
-        for (table, expression, exact) in [
-            ("search_russian_fts", normalized.as_str(), false),
-            ("search_exact_fts", quoted.as_str(), true),
+        for (sql, expression, exact) in [
+            (
+                "SELECT chunk_id,c.document_id FROM search_russian_fts JOIN document_chunks c ON c.id=search_russian_fts.chunk_id WHERE search_russian_fts MATCH ?1 AND project_id=?2",
+                normalized.as_str(),
+                false,
+            ),
+            (
+                "SELECT chunk_id,c.document_id FROM search_exact_fts JOIN document_chunks c ON c.id=search_exact_fts.chunk_id WHERE search_exact_fts MATCH ?1 AND project_id=?2",
+                quoted.as_str(),
+                true,
+            ),
         ] {
             if !exact && !normalized_terms.insert(expression.to_owned()) {
                 continue;
             }
-            let mut statement = connection.prepare(&format!(
-                "SELECT chunk_id,c.document_id FROM {table} JOIN document_chunks c ON c.id={table}.chunk_id WHERE {table} MATCH ?1 AND project_id=?2"
-            ))?;
+            let mut statement = connection.prepare(sql)?;
             let ids = statement.query_map(params![expression, project_id], |r| {
                 Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?))
             })?;
