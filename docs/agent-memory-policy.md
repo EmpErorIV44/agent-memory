@@ -16,7 +16,7 @@ the mapping is ambiguous, and never request a project outside the allowed list.
 When available, use memory_bootstrap(project, task?, max_bytes?, fetch?) once.
 Only baseline entries with status=ok contain full notes; inspect baseline_complete
 and complete omitted_budget/unavailable reads before relying on that baseline.
-recall:always marks the short required core; recall:task marks preferences selected
+recall/always marks the short required core; recall/task marks preferences selected
 for the task (default at most3; preference_limit0..20). Unmarked accepted
 constraints/preference-tagged notes keep their legacy baseline behavior. Inspect
 preferences.entries statuses and complete selected full reads, but do not enumerate

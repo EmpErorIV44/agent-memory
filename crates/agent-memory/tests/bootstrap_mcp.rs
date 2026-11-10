@@ -585,7 +585,7 @@ async fn short_core_and_bounded_task_preferences_replace_startup_pref_flood() ->
             "constraint",
             "accepted",
             "demo",
-            "'recall:always'",
+            "'recall/always'",
             "Short mandatory rules.",
         ),
     )?;
@@ -598,7 +598,7 @@ async fn short_core_and_bounded_task_preferences_replace_startup_pref_flood() ->
                 "constraint",
                 "accepted",
                 "demo",
-                &format!("'recall:task', 'topic:{topic}'"),
+                &format!("'recall/task', 'topic/{topic}'"),
                 &format!("release {}", "historical details ".repeat(200)),
             ),
         )?;
@@ -637,7 +637,7 @@ async fn short_core_and_bounded_task_preferences_replace_startup_pref_flood() ->
             assert!(entry["document"]["content"]
                 .as_str()
                 .unwrap()
-                .contains("topic:release"));
+                .contains("topic/release"));
         }
         for entry in selected["context"]["entries"].as_array().unwrap() {
             assert_eq!(entry["path"], "task.md"); // Deferred preferences cannot leak as excerpts.
@@ -684,7 +684,7 @@ async fn task_preference_full_read_omission_cannot_replace_or_displace_required_
             "constraint",
             "accepted",
             "demo",
-            "'recall:always'",
+            "'recall/always'",
             "Mandatory short rule.",
         ),
     )?;
@@ -695,7 +695,7 @@ async fn task_preference_full_read_omission_cannot_replace_or_displace_required_
             "constraint",
             "accepted",
             "demo",
-            "'recall:task', 'topic:git'",
+            "'recall/task', 'topic/git'",
             &"Long git history. ".repeat(1000),
         ),
     )?;

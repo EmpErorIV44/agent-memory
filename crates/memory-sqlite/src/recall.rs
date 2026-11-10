@@ -6,13 +6,14 @@ use serde_json::json;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 fn tagged(tags: &[String], tag: &str) -> bool {
-    tags.iter().any(|value| value == tag)
+    tags.iter()
+        .any(|value| value == tag || value == &tag.replacen('/', ":", 1))
 }
 
 fn required_fields(kind: &MemoryKind, status: &MemoryStatus, tags: &[String]) -> bool {
     *status == MemoryStatus::Accepted
-        && !tagged(tags, "recall:task")
-        && (tagged(tags, "recall:always")
+        && !tagged(tags, "recall/task")
+        && (tagged(tags, "recall/always")
             || *kind == MemoryKind::Constraint
             || tagged(tags, "preference")
             || tagged(tags, "preferences"))
@@ -106,7 +107,7 @@ impl Store {
             if required_fields(&record.memory.kind, &record.memory.status, &record.tags) {
                 managed_keys.insert((record.source_id, record.path.clone()));
                 required_records.push(record);
-            } else if tagged(&record.tags, "recall:task") {
+            } else if tagged(&record.tags, "recall/task") {
                 managed_keys.insert((record.source_id, record.path.clone()));
                 contextual_records.push(record);
             }
@@ -139,7 +140,10 @@ impl Store {
                 let topics: Vec<_> = record
                     .tags
                     .iter()
-                    .filter_map(|tag| tag.strip_prefix("topic:"))
+                    .filter_map(|tag| {
+                        tag.strip_prefix("topic/")
+                            .or_else(|| tag.strip_prefix("topic:"))
+                    })
                     .map(words)
                     .filter(|topic| !topic.is_empty())
                     .collect();

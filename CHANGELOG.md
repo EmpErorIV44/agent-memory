@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.1 — 2026-11-10
+
+- Use Obsidian-compatible nested tags (`recall/always`, `recall/task`, and
+  `topic/...`) in recall examples and client instructions. Keep legacy colon
+  tags readable, including mixed-format scope conflict checks and topic matching.
+
 ## 0.4.0 — 2026-11-10
 
 - Split bootstrap recall into an explicit always-read core and bounded task

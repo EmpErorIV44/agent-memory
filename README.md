@@ -109,8 +109,8 @@ agent behavior, and the [agent-memory skill](skills/agent-memory/SKILL.md).
 
 Start a project session with `memory_bootstrap` (CLI `bootstrap`) to load full
 accepted constraints/preferences, optional task context, Git freshness and a
-changes cursor in one bounded response. Use a short `recall:always` core and
-`recall:task` preferences to avoid loading every preference at startup; see
+changes cursor in one bounded response. Use a short `recall/always` core and
+`recall/task` preferences to avoid loading every preference at startup; see
 [recall tiers](docs/recall-tiers.md). Inspect incomplete baseline reads and
 cached freshness before proceeding. See [session bootstrap](docs/bootstrap.md).
 

@@ -46,7 +46,7 @@ project's baseline memory; do not wait for a task-specific search to reveal it.
 2. When supported, call `memory_bootstrap(project, task?, max_bytes?, fetch?)`.
    Inspect every baseline status and `baseline_complete`; only `ok` documents
    count as full reads. Complete omitted/unavailable reads through existing tools.
-   `recall:always` marks the short required core; `recall:task` defers preferences
+   `recall/always` marks the short required core; `recall/task` defers preferences
    until task matching (at most3 by default, `preference_limit`0..20). Unmarked
    accepted constraints/preference-tagged notes retain their legacy required
    behavior. Inspect `preferences.entries` statuses and complete selected full

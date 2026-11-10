@@ -6,7 +6,7 @@ in the index. No new SQLite migration or Memory kind is required.
 Keep the always-read core short. For example:
 
 ```yaml
-tags: ['recall:always']
+tags: ['recall/always']
 memory:
   id: project-core
   project: demo
@@ -22,7 +22,7 @@ is not silently summarized; if it does not fit, `baseline_complete` is false.
 Move lengthy background and conditional preferences into separate accepted notes:
 
 ```yaml
-tags: ['recall:task', 'topic:release', 'topic:релиз']
+tags: ['recall/task', 'topic/release', 'topic/релиз']
 memory:
   id: release-preferences
   project: demo
@@ -57,13 +57,13 @@ Preferences obey the same whole-response byte budget and full-read guarantees.
 ## Matching and compatibility
 
 - Only readable, project-owned, accepted structured records participate.
-- `recall:always` explicitly makes an accepted record required. `recall:task`
+- `recall/always` explicitly makes an accepted record required. `recall/task`
   explicitly defers it. The two tags cannot coexist.
 - For existing notes without either tag, accepted constraints and accepted notes
   tagged `preference`/`preferences` retain their previous required behavior.
   No existing requirement is silently downgraded. A project must classify its
   existing notes to benefit from the smaller core.
-- Nonempty `topic:` tags are explicit triggers. A topic can contain several words;
+- Nonempty `topic/` tags are explicit triggers. Use hyphens for multiword topics, such as `topic/database-migration`;
   all its normalized words must occur in the task, in any order. Any matching
   topic is sufficient. Matching is case-insensitive, uses Russian Snowball stems
   and whole words, and does not infer synonyms or translate languages.
@@ -79,11 +79,14 @@ Preferences obey the same whole-response byte budget and full-read guarantees.
   from general excerpts, so a deferred preference cannot leak back as an excerpt
   or consume an extra full-read obligation through that channel.
 
+Legacy `recall:always`, `recall:task`, and `topic:` tags remain readable.
+New tags use `/` for Obsidian compatibility.
+
 ## Migrating a project
 
 Read existing accepted rules before classifying them. Preserve unconditional
-requirements in a concise `recall:always` core; defer their detailed history and
-conditional instructions with `recall:task` and suitable topics. Do not change
+requirements in a concise `recall/always` core; defer their detailed history and
+conditional instructions with `recall/task` and suitable topics. Do not change
 statuses or interpret a shorter core as new authorization. Use hash-guarded MCP
 writes and the configured confirmation policy for knowledge changes. Read-only
 selection never edits or reclassifies notes. Update the installed server and

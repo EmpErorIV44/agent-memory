@@ -4,9 +4,9 @@
 
 Новое ядро: `preferences/agent-memory-core.md` (2806 UTF-8 байт вместо 21813 байт обязательного текста).
 
-Новое ядро создаётся первым. Затем шесть подробных заметок получают `recall:task`, темы `topic:` и updated=2026-11-10. Их статусы/ID и история сохраняются. В project-memory-across-skills.md один действующий абзац о чтении всех preferences заменяется новой схемой: короткое ядро и предпочтения, выбранные по задаче; иначе старый текст противоречил бы новому порядку. Остальные разделы сохраняются.
+Новое ядро создаётся первым. Затем шесть подробных заметок получают `recall/task`, темы `topic/` и updated=2026-11-10. Их статусы/ID и история сохраняются. В project-memory-across-skills.md один действующий абзац о чтении всех preferences заменяется новой схемой: короткое ядро и предпочтения, выбранные по задаче; иначе старый текст противоречил бы новому порядку. Остальные разделы сохраняются.
 
-| Заметка в source 1 | Темы topic: |
+| Заметка в source 1 | Темы topic/ |
 | --- | --- |
 | `preferences/automatic-memory-push.md` | git, push, синхронизация, автопуш |
 | `setup/git-identity-and-manual-sync.md` | git, push, синхронизация, автор, identity |
@@ -23,7 +23,7 @@ id: agent-memory-session-core
 title: Краткие обязательные правила agent-memory
 created: 2026-11-10
 updated: 2026-11-10
-tags: ['recall:always']
+tags: ['recall/always']
 memory:
   id: agent-memory-session-core
   project: agent-memory

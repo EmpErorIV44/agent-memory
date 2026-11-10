@@ -26,7 +26,7 @@ the budget or use paginated `memory_list` and bounded `memory_get_many`.
 ## Full baseline before excerpts
 
 The baseline contains required accepted records from readable project-owned
-sources. `recall:always` marks the short required core; `recall:task` marks
+sources. `recall/always` marks the short required core; `recall/task` marks
 conditional preferences that are selected only for a task (default limit 3).
 Unmarked accepted constraints and accepted notes tagged `preference`/`preferences`
 keep their previous required behavior. No existing rule is silently downgraded.

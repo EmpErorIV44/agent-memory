@@ -335,16 +335,28 @@ pub fn parse_metadata(text: &str) -> Result<DocumentMetadata> {
         ensure!(tags.insert(tag), "duplicate document tag");
     }
     ensure!(
-        !(metadata.tags.iter().any(|tag| tag == "recall:always")
-            && metadata.tags.iter().any(|tag| tag == "recall:task")),
-        "recall:always and recall:task cannot be combined"
+        !(metadata
+            .tags
+            .iter()
+            .any(|tag| tag == "recall/always" || tag == "recall:always")
+            && metadata
+                .tags
+                .iter()
+                .any(|tag| tag == "recall/task" || tag == "recall:task")),
+        "recall/always and recall/task cannot be combined"
     );
-    if metadata.tags.iter().any(|tag| tag == "recall:task") {
+    if metadata
+        .tags
+        .iter()
+        .any(|tag| tag == "recall/task" || tag == "recall:task")
+    {
         ensure!(
             metadata
                 .tags
                 .iter()
-                .filter_map(|tag| tag.strip_prefix("topic:"))
+                .filter_map(|tag| tag
+                    .strip_prefix("topic/")
+                    .or_else(|| tag.strip_prefix("topic:")))
                 .all(|topic| topic.chars().any(char::is_alphanumeric)),
             "topic tags must contain at least one word"
         );

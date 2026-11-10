@@ -22,14 +22,14 @@ fn explicit_tiers_preserve_legacy_baselines_and_do_not_read_deferred_notes() -> 
     for (id, kind, status, tags) in [
         ("legacy", "constraint", "accepted", vec![]),
         ("legacy-pref", "decision", "accepted", vec!["preference"]),
-        ("core", "fact", "accepted", vec!["recall:always"]),
+        ("core", "fact", "accepted", vec!["recall/always"]),
         (
             "scoped",
             "constraint",
             "accepted",
-            vec!["recall:task", "topic:git"],
+            vec!["recall/task", "topic/git"],
         ),
-        ("retired", "constraint", "deprecated", vec!["recall:always"]),
+        ("retired", "constraint", "deprecated", vec!["recall/always"]),
     ] {
         fs::write(
             root.join(format!("{id}.md")),
@@ -78,15 +78,15 @@ fn topics_override_noisy_body_matches_and_use_words_russian_stems_and_limits() -
     store.create_project("demo")?;
     store.add_source("demo", &root)?;
     for (id, tags, body) in [
-        ("git", vec!["recall:task", "topic:git"], "release release"),
-        ("release", vec!["recall:task", "topic:release"], "release"),
-        ("ru", vec!["recall:task", "topic:заметки"], "unrelated"),
+        ("git", vec!["recall/task", "topic/git"], "release release"),
+        ("release", vec!["recall/task", "topic/release"], "release"),
+        ("ru", vec!["recall/task", "topic/заметки"], "unrelated"),
         (
             "phrase",
-            vec!["recall:task", "topic:database migration"],
+            vec!["recall/task", "topic/database-migration"],
             "unrelated",
         ),
-        ("fallback", vec!["recall:task"], "release"),
+        ("fallback", vec!["recall/task"], "release"),
     ] {
         fs::write(
             root.join(format!("{id}.md")),
@@ -145,7 +145,7 @@ fn deferred_constraints_are_not_forced_and_exclusions_avoid_full_reads() -> Resu
     store.add_source("demo", &root)?;
     fs::write(
         root.join("core.md"),
-        note("core", "constraint", "accepted", &["recall:always"], "core"),
+        note("core", "constraint", "accepted", &["recall/always"], "core"),
     )?;
     fs::write(
         root.join("pref.md"),
@@ -153,7 +153,7 @@ fn deferred_constraints_are_not_forced_and_exclusions_avoid_full_reads() -> Resu
             "pref",
             "constraint",
             "accepted",
-            &["recall:task", "topic:git"],
+            &["recall/task", "topic/git"],
             "git",
         ),
     )?;
@@ -172,16 +172,48 @@ fn deferred_constraints_are_not_forced_and_exclusions_avoid_full_reads() -> Resu
 #[test]
 fn contradictory_scope_tags_are_rejected() {
     let result =
-        memory_core::parse_metadata("---\ntags: ['recall:task', 'recall:always']\n---\n# Rule\n");
+        memory_core::parse_metadata("---\ntags: ['recall/task', 'recall/always']\n---\n# Rule\n");
     assert!(result
         .unwrap_err()
         .to_string()
         .contains("cannot be combined"));
     assert!(
-        memory_core::parse_metadata("---\ntags: ['recall:task','topic:---']\n---\n")
+        memory_core::parse_metadata("---\ntags: ['recall/task','topic/---']\n---\n")
             .unwrap_err()
             .to_string()
             .contains("at least one word")
     );
-    assert!(memory_core::parse_metadata("---\ntags: ['topic:']\n---\n").is_ok());
+    assert!(memory_core::parse_metadata("---\ntags: ['topic/']\n---\n").is_ok());
+}
+
+#[test]
+fn legacy_tags_and_mixed_scope_validation_remain_supported() -> Result<()> {
+    assert!(
+        memory_core::parse_metadata("---\ntags: ['recall:always', 'recall/task']\n---\n").is_err()
+    );
+    let temp = tempfile::tempdir()?;
+    let mut store = Store::open(&temp.path().join("db"))?;
+    let root = temp.path().join("notes");
+    fs::create_dir(&root)?;
+    store.create_project("demo")?;
+    store.add_source("demo", &root)?;
+    fs::write(
+        root.join("legacy.md"),
+        note(
+            "legacy",
+            "constraint",
+            "accepted",
+            &["recall:task", "topic:заметки"],
+            "unrelated",
+        ),
+    )?;
+    store.index("demo")?;
+    assert!(store.recall_plan("demo", None, 3)?.required.is_empty());
+    assert_eq!(
+        store.recall_plan("demo", Some("заметками"), 3)?.preferences[0]
+            .memory
+            .id,
+        "legacy"
+    );
+    Ok(())
 }
