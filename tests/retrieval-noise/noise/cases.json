@@ -1,0 +1,6 @@
+[
+  {"id":"partial-common-word","mode":"search","query":"webhook retry delivery","relevant":["retry.md"],"forbidden":["common.md"],"category":"noise","rationale":"Common word alone must not qualify as the delivery retry policy."},
+  {"id":"negative-partial","mode":"search","query":"webhook telescope galaxy","relevant":[],"forbidden":[],"category":"negative","rationale":"No astronomy knowledge exists despite a shared common word."},
+  {"id":"semantic-collision","mode":"search","query":"refund ocean","relevant":[],"forbidden":[],"category":"lexical-limitation","rationale":"All query words occur in an irrelevant word list. Coverage alone cannot solve this negative case."},
+  {"id":"negative-absent","mode":"search","query":"quasar neutrino","relevant":[],"forbidden":[],"category":"negative","rationale":"No shared words and no relevant document."}
+]

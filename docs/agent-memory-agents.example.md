@@ -23,8 +23,10 @@ memory_get_record returns structured knowledge, not full Markdown. Search for
 additional context or unstructured notes; use memory_sources when source rights
 or a writable destination are needed. Russian search uses Snowball stemming and
 kind/status filters. Cyrillic prefixes retain literal prefix semantics.
-For narrow task questions, read the relevant chunk with
-memory_get(project, chunk_id, content_hash), leaving include_document false.
+For narrow task questions, reuse sufficient chunk body text from memory_search;
+do not fetch the same unchanged chunk again. Use memory_get(project, chunk_id,
+content_hash) with include_document false when the complete chunk text is missing,
+for example after a truncated context excerpt.
 Prefer source_id + path when the full note is needed; chunk mode with
 include_document=true returns both chunk and document, duplicating text.
 Chunks do not replace required baseline/selected preference reads or complete

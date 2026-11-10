@@ -91,6 +91,9 @@ enum Command {
         project: String,
         #[arg(long, default_value_t = 4000)]
         max_tokens: usize,
+        /// Return the unchanged context and diagnostics outside its byte budget.
+        #[arg(long)]
+        explain: bool,
         task: String,
     },
     /// Diagnose explicit contradictions, supersession conflicts and relation cycles.
@@ -299,12 +302,18 @@ enum Command {
         /// Query interpretation: FTS expression or ordinary words.
         #[arg(long, default_value = "fts", value_parser = ["fts", "natural"])]
         mode: String,
+        /// Minimum normalized document word coverage (0..=1); requires natural mode.
+        #[arg(long)]
+        min_coverage: Option<f64>,
         /// Print {"hits": [...]} with paths, line numbers and document hashes.
         #[arg(long)]
         json: bool,
         /// Print unique source-relative paths, one per line, in search order.
         #[arg(long, conflicts_with = "json")]
         paths_only: bool,
+        /// Include actual ranking diagnostics in JSON output.
+        #[arg(long, conflicts_with = "paths_only")]
+        explain: bool,
         query: String,
     },
 }
@@ -643,11 +652,16 @@ async fn main() -> Result<()> {
             project,
             task,
             max_tokens,
+            explain,
         } => {
             store.index(&project)?;
             println!(
                 "{}",
-                serde_json::to_string(&store.task_context(&project, &task, max_tokens)?)?
+                serde_json::to_string(&if explain {
+                    store.task_context_explained(&project, &task, max_tokens)?
+                } else {
+                    store.task_context(&project, &task, max_tokens)?
+                })?
             );
         }
         Command::Contradictions { project } => {
@@ -1001,14 +1015,27 @@ async fn main() -> Result<()> {
             limit,
             literal,
             mode,
+            min_coverage,
             json,
             paths_only,
+            explain,
         } => {
             let mut options =
                 memory_sqlite::SearchOptions::from_filters(kind.as_deref(), status.as_deref())?;
             options.limit = usize::from(limit);
             options.literal = literal;
+            options.explain = explain;
+            options.min_coverage = min_coverage;
             options.mode = serde_json::from_value(serde_json::Value::String(mode))?;
+            if json || explain {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(
+                        &store.search_report(&project, &query, &options)?
+                    )?
+                );
+                return Ok(());
+            }
             let hits = store.search_filtered(&project, &query, &options)?;
             if paths_only {
                 let mut seen = std::collections::HashSet::new();
@@ -1017,11 +1044,6 @@ async fn main() -> Result<()> {
                         println!("{}", hit.path);
                     }
                 }
-            } else if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({ "hits": hits }))?
-                );
             } else {
                 for hit in hits {
                     println!(

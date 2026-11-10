@@ -222,8 +222,11 @@ the agent context. Do not log/print the entire tool envelope, repeat both copies
 or re-read an unchanged note already loaded in this session. Server formatting
 cannot control extra copies introduced by a client.
 
-For a narrow task question, use `memory_get(project, chunk_id, content_hash)`
-without `include_document=true` to read only the relevant chunk. Load the full
+For a narrow task question, reuse sufficient chunk `body` text already returned
+by `memory_search`. Calling `memory_get` for that same unchanged chunk repeats
+the text. Use `memory_get(project, chunk_id, content_hash)` without
+`include_document=true` when the complete chunk text is missing, for example
+after a truncated context excerpt. Load the full
 note with `source_id + path` when omitted context matters, for required baseline
 and selected preference reads, and before updating it. A chunk must not be
 reported as a complete-note read or used to replace the whole source file.

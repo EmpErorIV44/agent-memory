@@ -73,9 +73,33 @@ async fn natural_mode_is_explicit_in_cli_and_mcp_and_preserves_fts_defaults() ->
     .await?;
     assert_ne!(natural.is_error, Some(true), "{natural:?}");
     assert_eq!(natural.structured_content.unwrap(), expected);
+    for threshold in [0.0, 0.5, 0.6, 1.0] {
+        let output = cli(
+            &db,
+            &[
+                "--mode",
+                "natural",
+                "--min-coverage",
+                &threshold.to_string(),
+                "--explain",
+                "alpha beta",
+            ],
+        )?;
+        assert!(output.status.success(), "{output:?}");
+        let result = call(&client, json!({"project":"demo","query":"alpha beta","mode":"natural","min_coverage":threshold,"explain":true})).await?;
+        assert_ne!(result.is_error, Some(true));
+        let payload = result.structured_content.unwrap();
+        assert_eq!(payload, serde_json::from_slice::<Value>(&output.stdout)?);
+        assert_eq!(
+            payload["hits"].as_array().unwrap().len(),
+            if threshold <= 0.5 { 2 } else { 0 }
+        );
+    }
     let fts = call(&client, json!({"project":"demo","query":"alpha beta"})).await?;
     assert_eq!(fts.structured_content.unwrap(), json!({"hits":[]}));
     for args in [
+        json!({"project":"demo","query":"alpha","min_coverage":0.5}),
+        json!({"project":"demo","query":"alpha","mode":"natural","min_coverage":1.1}),
         json!({"project":"demo","query":"alpha","mode":"natural","literal":true}),
         json!({"project":"demo","query":"alpha","mode":"unknown"}),
     ] {

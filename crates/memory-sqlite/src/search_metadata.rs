@@ -4,7 +4,9 @@ use memory_core::{MemoryKind, MemoryStatus};
 use rusqlite::{params, Connection, Transaction};
 use rust_stemmers::{Algorithm, Stemmer};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
+
+type MatchedTerms = (BTreeSet<String>, BTreeSet<String>);
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -24,6 +26,10 @@ pub struct SearchOptions {
     /// Treat the whole query as one FTS5 phrase, rather than an expression.
     pub literal: bool,
     pub mode: SearchMode,
+    /// Attach actual ranking diagnostics without changing selection.
+    pub explain: bool,
+    /// Minimum normalized document word coverage in natural mode (0..=1).
+    pub min_coverage: Option<f64>,
 }
 
 impl Default for SearchOptions {
@@ -34,6 +40,8 @@ impl Default for SearchOptions {
             limit: 50,
             literal: false,
             mode: SearchMode::Fts,
+            explain: false,
+            min_coverage: None,
         }
     }
 }
@@ -167,6 +175,26 @@ pub(crate) fn search_filtered(
     query: &str,
     options: &SearchOptions,
 ) -> Result<Vec<SearchHit>> {
+    search_with_diagnostics(connection, project_id, query, options, &mut Vec::new())
+}
+
+pub(crate) fn search_with_diagnostics(
+    connection: &Connection,
+    project_id: i64,
+    query: &str,
+    options: &SearchOptions,
+    rejected: &mut Vec<serde_json::Value>,
+) -> Result<Vec<SearchHit>> {
+    if let Some(minimum) = options.min_coverage {
+        ensure!(
+            options.mode == SearchMode::Natural,
+            "min_coverage requires natural mode"
+        );
+        ensure!(
+            minimum.is_finite() && (0.0..=1.0).contains(&minimum),
+            "min_coverage must be finite and between 0 and 1"
+        );
+    }
     ensure!(
         (1..=50).contains(&options.limit),
         "Search limit must be between 1 and 50"
@@ -176,10 +204,23 @@ pub(crate) fn search_filtered(
         "natural mode cannot be combined with literal"
     );
     if options.mode == SearchMode::Natural {
-        return search_natural(connection, project_id, query, options);
+        return search_natural(connection, project_id, query, options, rejected);
     }
     let mut hits = search_ranked(connection, project_id, query, options)?;
     hits.truncate(options.limit);
+    if options.explain {
+        for (rank, hit) in hits.iter_mut().enumerate() {
+            let explanation = hit.explanation.as_mut().expect("lexical diagnostics");
+            explanation["returned_rank"] = serde_json::json!(rank + 1);
+            let expression = if options.literal {
+                format!("\"{}\"", query.replace('"', "\"\""))
+            } else {
+                query.to_owned()
+            };
+            explanation["evaluated_expression"] = serde_json::json!(expression);
+            explanation["normalized_expression"] = serde_json::json!(russian(&expression));
+        }
+    }
     Ok(hits)
 }
 
@@ -240,6 +281,7 @@ fn search_ranked(
                 document_id: row.get(6)?,
                 source_id: row.get(7)?,
                 content_hash: row.get(8)?,
+                explanation: None,
             },
             row.get::<_, f64>(10)?,
         ))
@@ -257,7 +299,22 @@ fn search_ranked(
             .then_with(|| a.path.cmp(&b.path))
             .then_with(|| a.start_line.cmp(&b.start_line))
     });
-    Ok(hits.into_iter().map(|(hit, _)| hit).collect())
+    Ok(hits.into_iter().enumerate().map(|(rank, (mut hit, score))| {
+        if options.explain {
+            let exact_score = exact.get(&hit.chunk_id);
+            hit.explanation = Some(serde_json::json!({
+                "mode": "fts",
+                "exact_expression_match": exact_score.is_some(),
+                "bm25": exact_score.copied().unwrap_or(score),
+                "bm25_source": if exact_score.is_some() { "exact" } else { "russian" },
+                "lexical_rank_before_limit": rank + 1,
+                "ranking_order": ["exact_expression_match_desc", "bm25_asc", "path_asc", "start_line_asc"],
+                "match_scope": "indexed_heading_body_title_path_ids_summary",
+                "scope": "returned_hits_only"
+            }));
+        }
+        hit
+    }).collect())
 }
 
 /// Safe word queries reuse project-scoped FTS eligibility and ranking. Per-word
@@ -267,6 +324,7 @@ fn search_natural(
     project_id: i64,
     query: &str,
     options: &SearchOptions,
+    rejected: &mut Vec<serde_json::Value>,
 ) -> Result<Vec<SearchHit>> {
     ensure!(
         query.len() <= 8192,
@@ -298,6 +356,8 @@ fn search_natural(
     let mut coverage: HashMap<i64, (usize, usize)> = HashMap::new();
     let mut document_coverage: HashMap<i64, (usize, usize)> = HashMap::new();
     let mut normalized_terms = HashSet::new();
+    let mut chunk_terms: HashMap<i64, MatchedTerms> = HashMap::new();
+    let mut doc_terms = chunk_terms.clone();
     for term in terms {
         let quoted = format!("\"{term}\"");
         let normalized = russian(&quoted);
@@ -324,6 +384,12 @@ fn search_natural(
             for id in ids {
                 let (chunk_id, document_id) = id?;
                 documents.insert(document_id);
+                if options.explain {
+                    for entry in [chunk_terms.entry(chunk_id).or_default(), doc_terms.entry(document_id).or_default()] {
+                        if exact { entry.1.insert(term.clone()); }
+                        else { entry.0.insert(expression.to_owned()); }
+                    }
+                }
                 let counts = coverage.entry(chunk_id).or_default();
                 if exact {
                     counts.1 += 1;
@@ -353,6 +419,60 @@ fn search_natural(
     });
     let mut seen = HashSet::new();
     hits.retain(|hit| seen.insert(hit.document_id));
+    let total = normalized_terms.len();
+    hits.retain(|hit| {
+        let matched = document_coverage
+            .get(&hit.document_id)
+            .copied()
+            .unwrap_or_default()
+            .0;
+        let ratio = matched as f64 / total as f64;
+        let keep = options.min_coverage.is_none_or(|minimum| ratio >= minimum);
+        if !keep && options.explain {
+            rejected.push(serde_json::json!({
+                "source_id": hit.source_id, "path": hit.path,
+                "matched_words": matched, "query_words": total,
+                "coverage": ratio, "min_coverage": options.min_coverage,
+                "reason": "below_min_coverage"
+            }));
+        }
+        keep
+    });
     hits.truncate(options.limit);
+    if options.explain {
+        for (rank, hit) in hits.iter_mut().enumerate() {
+            let explanation = hit.explanation.as_mut().expect("lexical diagnostics");
+            explanation["mode"] = serde_json::json!("natural");
+            if options.min_coverage.is_some() {
+                explanation["coverage_filter"] = serde_json::json!({
+                "min_coverage": options.min_coverage,
+                "query_words": total,
+                "matched_words": document_coverage.get(&hit.document_id).copied().unwrap_or_default().0,
+                "coverage": document_coverage.get(&hit.document_id).copied().unwrap_or_default().0 as f64 / total as f64
+                });
+            }
+            explanation["evaluated_expression"] = serde_json::json!(expression);
+            explanation["normalized_expression"] = serde_json::json!(russian(&expression));
+            explanation["returned_rank"] = serde_json::json!(rank + 1);
+            explanation["ranking_order"] = serde_json::json!([
+                "document_normalized_coverage_desc",
+                "document_exact_coverage_desc",
+                "chunk_normalized_coverage_desc",
+                "chunk_exact_coverage_desc",
+                "lexical_rank_before_limit_asc"
+            ]);
+            explanation["document_coverage"] = serde_json::json!(document_coverage
+                .get(&hit.document_id)
+                .copied()
+                .unwrap_or_default());
+            explanation["chunk_coverage"] =
+                serde_json::json!(coverage.get(&hit.chunk_id).copied().unwrap_or_default());
+            explanation["chunk_matched_terms"] = serde_json::json!(chunk_terms.get(&hit.chunk_id));
+            explanation["document_matched_terms"] =
+                serde_json::json!(doc_terms.get(&hit.document_id));
+            explanation["coverage_format"] = serde_json::json!(["normalized", "exact"]);
+            explanation["deduplicated_by_document"] = serde_json::json!(true);
+        }
+    }
     Ok(hits)
 }

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.5.0 — 2026-11-11
+
+- Add optional natural-search `min_coverage` in CLI/MCP, with validated normalized
+  document coverage, filtering before limit and explain reasons for rejected
+  documents (including empty results). Preserve FTS default and unfiltered natural.
+- Add a separate noise corpus and coverage-threshold benchmark matrix.
+- Add opt-in CLI/MCP `explain` diagnostics for lexical ranking, context admission,
+  relation witnesses, budget omissions and exact compact JSON byte accounting.
+  Context diagnostics live outside the unchanged context budget.
+- Add an isolated context-economy benchmark with English/Russian fact labels,
+  excerpt/full-document byte comparisons, explain parity checks and reproducible
+  JSON/Markdown reports. Include benchmark-runner tests in `make test-python`.
+- Run all Python packaging and benchmark-runner tests in the release workflow.
+
 ## 0.4.1 — 2026-11-10
 
 - Use Obsidian-compatible nested tags (`recall/always`, `recall/task`, and

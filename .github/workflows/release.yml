@@ -68,8 +68,8 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
       - run: cargo +stable fmt --all -- --check
-      - name: Test release packaging
-        run: python3 -m unittest discover -s tests -p 'test_package_release.py'
+      - name: Test release packaging and benchmark runners
+        run: make test-python
       - run: cargo +stable clippy --workspace --all-targets --locked -- -D warnings
 
   build:

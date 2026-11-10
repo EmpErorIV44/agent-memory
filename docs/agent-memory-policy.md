@@ -29,9 +29,11 @@ If bootstrap is unavailable, start with memory_list and inspect accepted constra
 Read missing or additional full documents with memory_get(project, source_id, path,
 content_hash), using the source coordinates and full-document hash from the list.
 memory_get_record returns structured knowledge, not the full Markdown document.
-Use memory_search for additional task knowledge. For a narrow question, use
-memory_get(project, chunk_id, content_hash) with include_document=false to read
-only the relevant chunk; do not automatically load the full note. A chunk is not
+Use memory_search for additional task knowledge. Its hits already include chunk
+body text: reuse it when sufficient for the question, without calling memory_get
+for the same unchanged chunk. Use memory_get(project, chunk_id, content_hash)
+with include_document=false only when the complete chunk text is not already
+available (for example, after a truncated context excerpt). A chunk is not
 a complete-note read. Complete required baseline/selected preference reads and
 read the full note before updates or when omitted context matters. Prefer
 source_id + path for full reads: it returns only document, avoiding the repeated

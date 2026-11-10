@@ -10,6 +10,65 @@ fn options() -> SearchOptions {
 }
 
 #[test]
+fn minimum_coverage_filters_documents_before_limit_and_explains_empty_results() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let notes = temp.path().join("notes");
+    fs::create_dir(&notes)?;
+    fs::write(notes.join("weak.md"), "# General\nwebhook\n")?;
+    fs::write(
+        notes.join("strong.md"),
+        "# First\nwebhook\n## Second\nretry\n",
+    )?;
+    fs::write(notes.join("ru.md"), "# General\nзаметками доставка\n")?;
+    let mut store = Store::open(&temp.path().join("index.sqlite"))?;
+    store.create_project("demo")?;
+    store.add_source("demo", &notes)?;
+    store.index("demo")?;
+    let mut opts = options();
+    let original = store.search_filtered("demo", "webhook retry", &opts)?;
+    assert_eq!(original.len(), 2);
+    opts.min_coverage = Some(0.0);
+    assert_eq!(
+        store.search_filtered("demo", "webhook retry", &opts)?.len(),
+        2
+    );
+    opts.min_coverage = Some(1.0);
+    opts.limit = 1;
+    let hits = store.search_filtered("demo", "webhook retry", &opts)?;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].path, "strong.md");
+    opts.explain = true;
+    let report = store.search_report("demo", "webhook retry", &opts)?;
+    assert_eq!(report["coverage_filter"]["rejected"][0]["path"], "weak.md");
+    assert_eq!(report["coverage_filter"]["rejected"][0]["coverage"], 0.5);
+    let empty = store.search_report("demo", "webhook absent", &opts)?;
+    assert!(empty["hits"].as_array().unwrap().is_empty());
+    assert_eq!(
+        empty["coverage_filter"]["rejected"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    // Morphological variants count as one normalized query word.
+    assert_eq!(
+        store
+            .search_filtered("demo", "заметки заметками доставка", &opts)?
+            .len(),
+        1
+    );
+    assert!(store.search_filtered("demo", "???", &opts)?.is_empty());
+    for value in [-0.1, 1.1, f64::NAN, f64::INFINITY] {
+        opts.min_coverage = Some(value);
+        assert!(store.search_filtered("demo", "webhook", &opts).is_err());
+    }
+    opts.min_coverage = Some(0.5);
+    opts.mode = SearchMode::Fts;
+    assert!(store.search_filtered("demo", "webhook", &opts).is_err());
+    Ok(())
+}
+
+#[test]
 fn coverage_precedes_exactness_and_limit_is_applied_after_ranking() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let notes = temp.path().join("notes");
@@ -159,6 +218,13 @@ fn filters_and_project_access_apply_before_returning_natural_hits() -> Result<()
     let hits = store.search_filtered("demo", "alpha beta secret", &opts)?;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].path, "wanted.md");
+    opts.min_coverage = Some(1.0);
+    opts.explain = true;
+    let report = store.search_report("demo", "alpha beta secret", &opts)?;
+    assert!(report["hits"].as_array().unwrap().is_empty());
+    let rejected = report["coverage_filter"]["rejected"].as_array().unwrap();
+    assert_eq!(rejected.len(), 1);
+    assert_eq!(rejected[0]["path"], "wanted.md");
     assert!(store
         .search_filtered("demo", "secret", &options())?
         .is_empty());

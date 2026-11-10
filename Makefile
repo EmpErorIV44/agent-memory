@@ -13,7 +13,7 @@ help:
 	  'make release      Build the release binary' \
 	  'make run ARGS=... Run the CLI with optional arguments' \
 	  'make test         Run all Rust tests sequentially' \
-	  'make test-python  Test release packaging' \
+	  'make test-python  Test release packaging and benchmark runners' \
 	  'make fmt          Format Rust sources' \
 	  'make fmt-check    Check Rust formatting' \
 	  'make lint         Run Clippy with warnings denied' \
@@ -37,6 +37,8 @@ test:
 
 test-python:
 	$(PYTHON) -m unittest discover -s tests -p 'test_package_release.py'
+	$(PYTHON) -m unittest discover -s tests -p 'test_evaluate_retrieval.py'
+	$(PYTHON) -m unittest discover -s tests -p 'test_context_economy.py'
 
 fmt:
 	$(CARGO) fmt --all

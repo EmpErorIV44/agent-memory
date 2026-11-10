@@ -128,6 +128,34 @@ no synonyms, stop-word removal, embeddings or model calls. Common words can
 produce many weak matches, and lexical retrieval cannot guarantee recovery of
 paraphrases with no shared words. Existing FTS and context behavior are unchanged.
 
+## Optional natural coverage filter
+
+FTS remains the default. Natural search retains its existing results unless
+`--min-coverage` (MCP `min_coverage`) is explicitly supplied:
+
+```sh
+agent-memory search --project demo --mode natural --min-coverage 0.6 --explain 'webhook retry delivery'
+```
+
+```json
+{"project":"demo","query":"webhook retry delivery","mode":"natural","min_coverage":0.6,"explain":true}
+```
+
+The value must be finite and between 0 and 1 inclusive, and requires natural
+mode. Coverage is matched distinct Russian-normalized query words divided by
+all distinct normalized query words. Matches may span document sections and
+indexed metadata. Morphological variants count once. Filtering precedes the
+result limit and preserves the remaining order. Zero preserves all candidates;
+one requires every normalized word. Punctuation-only queries still return none.
+
+With this filter and explain enabled, a top-level `coverage_filter` includes
+rejected document source/path, matched/query word counts, ratio, threshold and
+`below_min_coverage` reason, even when `hits` is empty. Returned hits include
+their own coverage counts. Diagnostics never add rejected bodies. Without
+explain, rejected documents are absent from output. A high lexical coverage is
+not a semantic relevance score; common words can pass, and paraphrases can fail.
+No automatic threshold or fallback is selected.
+
 ## Paths for scripts
 
 Use `--paths-only` to print unique source-relative paths, one per line, in the
@@ -146,3 +174,8 @@ relative to each hit's source; identical paths across sources collapse to one
 line. Use JSON when source IDs or full identity matter. Line-delimited output
 assumes filenames without newline characters; JSON preserves arbitrary filenames.
 MCP already returns paths and source IDs in structured hits.
+
+## Explain diagnostics
+
+See [explain and context economy](explain-and-context-economy.md) for opt-in
+CLI/MCP diagnostics, byte accounting, the repeatable benchmark and testing.

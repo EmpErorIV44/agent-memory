@@ -72,3 +72,20 @@ phrase cases retain their phrase contract. Context cases remain unchanged.
 The report records `search_mode`; compare input hashes, complete ordered rankings,
 judged precision, forbidden returns, recall and operational errors with an FTS run
 of the same binary. Do not edit fixtures or labels to improve a score.
+
+## Coverage threshold experiment
+
+```sh
+python3 scripts/benchmark-search-coverage.py --output /tmp/agent-memory-coverage
+```
+
+This runs unchanged RU/EN labels and the separate `tests/retrieval-noise` corpus
+with natural mode at no threshold, 0, 0.5, 0.6 and 1. Each report retains fixture
+and binary hashes. Compare recall, ranked paths, judged precision, forbidden
+returns and negative violations. The noise corpus includes a common-word false
+positive, a partial-match negative and a complete lexical collision that coverage
+cannot reject. A successful script exit establishes operational success only.
+No automatic production threshold follows from these small synthetic datasets.
+
+Individual runs accept `--search-mode natural --min-coverage 0.6` on
+`scripts/evaluate-retrieval.py`. Literal cases and context remain unchanged.

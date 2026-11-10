@@ -88,6 +88,8 @@ pub struct SearchHit {
     pub body: String,
     pub start_line: usize,
     pub end_line: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explanation: Option<serde_json::Value>,
 }
 
 impl Store {
@@ -375,6 +377,29 @@ impl Store {
         )
     }
 
+    /// Search JSON payload, including threshold rejections even when no hits remain.
+    pub fn search_report(
+        &self,
+        project: &str,
+        query: &str,
+        options: &SearchOptions,
+    ) -> Result<serde_json::Value> {
+        let mut rejected = Vec::new();
+        let hits = search_metadata::search_with_diagnostics(
+            &self.connection,
+            self.project_id(project)?,
+            query,
+            options,
+            &mut rejected,
+        )?;
+        let mut report = serde_json::json!({"hits": hits});
+        if options.explain && options.min_coverage.is_some() {
+            report["coverage_filter"] =
+                serde_json::json!({"min_coverage": options.min_coverage, "rejected": rejected});
+        }
+        Ok(report)
+    }
+
     pub fn get(
         &self,
         project: &str,
@@ -392,6 +417,7 @@ impl Store {
                 end_line: row.get::<_, i64>(4)? as usize,
                 chunk_id: row.get(5)?, document_id: row.get(6)?,
                 source_id: row.get(7)?, content_hash: row.get(8)?,
+                explanation: None,
             }),
         ).optional()?)
     }

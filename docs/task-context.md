@@ -106,3 +106,8 @@ Read current full source notes and review evidence before explicitly updating
 statuses or relations using the ordinary write policy and hash guards. Reports
 are derived on demand without pagination; large projects or relation graphs can
 be expensive. No schema migration or persistent diagnostic queue is introduced.
+
+## Explain diagnostics
+
+See [explain and context economy](explain-and-context-economy.md) for opt-in
+CLI/MCP diagnostics, byte accounting, the repeatable benchmark and testing.

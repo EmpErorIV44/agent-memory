@@ -87,9 +87,11 @@ def invoke(binary, args, cwd):
     return process.stdout
 
 
-def evaluate(binary, fixtures, search_mode="fts"):
+def evaluate(binary, fixtures, search_mode="fts", min_coverage=None):
     if search_mode not in ("fts", "natural"):
         raise ValueError("search_mode must be fts or natural")
+    if min_coverage is not None and (search_mode != 'natural' or not 0 <= min_coverage <= 1):
+        raise ValueError('min_coverage requires natural mode and a finite value in [0, 1]')
     binary = binary.resolve()
     suites = sorted(p.parent for p in fixtures.glob('*/cases.json'))
     if not suites:
@@ -135,6 +137,8 @@ def evaluate(binary, fixtures, search_mode="fts"):
                                 args.extend(['--' + key, case[key]])
                         if search_mode == 'natural' and not case.get('literal'):
                             args.extend(['--mode', 'natural'])
+                            if min_coverage is not None:
+                                args.extend(['--min-coverage', str(min_coverage)])
                         if case.get('literal'):
                             args.append('--literal')
                         args.extend(['--', case['query']])
@@ -165,6 +169,8 @@ def evaluate(binary, fixtures, search_mode="fts"):
                     row['quality_pass'] = False
                 report['cases'].append(row)
     report['summary'] = summarize(report['cases'])
+    if min_coverage is not None:
+        report['min_coverage'] = min_coverage
     report['by_suite'] = {suite.name: summarize([r for r in report['cases'] if r['suite'] == suite.name])
                           for suite, _ in loaded}
     return report
@@ -210,9 +216,11 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, help='JSON file; companion Markdown uses the .md suffix')
     parser.add_argument('--fail-on-miss', action='store_true')
     parser.add_argument('--search-mode', choices=['fts', 'natural'], default='fts')
+    parser.add_argument('--min-coverage', type=float)
     args = parser.parse_args(argv)
     try:
-        report = evaluate(args.binary, args.fixtures.resolve(), args.search_mode)
+        report = evaluate(args.binary, args.fixtures.resolve(), args.search_mode, args.min_coverage)
+        report['min_coverage'] = args.min_coverage
         if args.output:
             if args.output.suffix != '.json':
                 raise ValueError('--output must end in .json')

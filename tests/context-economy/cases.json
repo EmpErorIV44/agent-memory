@@ -1,0 +1,122 @@
+[
+  {
+    "id": "en-direct",
+    "mode": "search",
+    "query": "webhook retry",
+    "facts": [
+      {
+        "path": "webhooks.md",
+        "text": "Retry HTTP 429 and 5xx for at most 24 hours."
+      }
+    ]
+  },
+  {
+    "id": "en-cross-section",
+    "mode": "search",
+    "query": "backup storage",
+    "facts": [
+      {
+        "path": "backup.md",
+        "text": "Copy Markdown notes and owner configuration."
+      },
+      {
+        "path": "backup.md",
+        "text": "Include .agent-memory-history/ and .agent-memory-operations/ in the backup."
+      }
+    ]
+  },
+  {
+    "id": "ru-direct",
+    "mode": "search",
+    "query": "автопуш памяти",
+    "facts": [
+      {
+        "path": "autopush.md",
+        "text": "900 секунд"
+      },
+      {
+        "path": "autopush.md",
+        "text": "После записи выполняются commit и push."
+      }
+    ]
+  },
+  {
+    "id": "ru-cross-section",
+    "mode": "search",
+    "query": "автопуш памяти",
+    "facts": [
+      {
+        "path": "autopush.md",
+        "text": "900 секунд"
+      },
+      {
+        "path": "autopush.md",
+        "text": "Таймер работает только пока запущен MCP."
+      }
+    ]
+  },
+  {
+    "id": "en-flat",
+    "mode": "search",
+    "query": "token lease",
+    "facts": [
+      {
+        "path": "flat.md",
+        "text": "60 seconds"
+      },
+      {
+        "path": "flat.md",
+        "text": "20 seconds"
+      }
+    ]
+  },
+  {
+    "id": "wrong-topic",
+    "mode": "search",
+    "query": "configuration snapshot",
+    "facts": [
+      {
+        "path": "backup.md",
+        "text": "Include .agent-memory-history/ and .agent-memory-operations/ in the backup."
+      }
+    ]
+  },
+  {
+    "id": "negative",
+    "mode": "search",
+    "query": "qxvunknownzz",
+    "facts": []
+  },
+  {
+    "id": "long-context-small",
+    "mode": "context",
+    "query": "reconciliation window",
+    "facts": [
+      {
+        "path": "long.md",
+        "text": "Reconciliation starts at 06:00 UTC."
+      },
+      {
+        "path": "long.md",
+        "text": "The final cutoff is 07:30 UTC."
+      }
+    ],
+    "max_tokens": 1200
+  },
+  {
+    "id": "long-context-large",
+    "mode": "context",
+    "query": "reconciliation window",
+    "facts": [
+      {
+        "path": "long.md",
+        "text": "Reconciliation starts at 06:00 UTC."
+      },
+      {
+        "path": "long.md",
+        "text": "The final cutoff is 07:30 UTC."
+      }
+    ],
+    "max_tokens": 8000
+  }
+]

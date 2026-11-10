@@ -99,6 +99,7 @@ fn candidates(
                 document_id: row.get(6)?,
                 source_id: row.get(7)?,
                 content_hash: row.get(8)?,
+                explanation: None,
             },
             row.get::<_, String>(10)?,
             row.get::<_, String>(11)?,
@@ -326,6 +327,7 @@ mod tests {
             body: "text".into(),
             start_line: 1,
             end_line: 1,
+            explanation: None,
         }
     }
 

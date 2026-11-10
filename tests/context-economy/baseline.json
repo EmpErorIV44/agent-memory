@@ -1,0 +1,379 @@
+{
+  "schema_version": 1,
+  "binary_version": "agent-memory 0.4.1",
+  "binary_sha256": "c516d6042eb665f3bdb4b56ec85a7ab7a0378a0013d93fc991b5a3bc4be84efe",
+  "fixture_sha256": {
+    "cases.json": "fb2b7bdd744ca724e233a804e6d5cad700751586545eac87ec83aefea7a1d069",
+    "notes/autopush.md": "dd0320c3ed31baedc8c9a1295207598c53bfcdb286b028c88fca1ccdf60612c6",
+    "notes/backup.md": "f4048b5f89ea505a71dcd9c2dbf6002601f2f328e0aea27721307f9dc30a9f23",
+    "notes/config.md": "5a0504af9682cabc9fd3ee0d9d12467b5320c7e955a3cbf454392a61034966ba",
+    "notes/flat.md": "f12ec8f0ee3e8bee775b6267a49dec09e1c85733614f3b1b3e7f9c5c34496154",
+    "notes/long.md": "8b2e85571342bb2a3f70a478c16a179672cf49387baf87e72b92219ae2898625",
+    "notes/webhooks.md": "d09fa2c21041752bbd71cecc3b5a472d07ee663baa9db38fe7742fad656dc550"
+  },
+  "method": "Natural search top 1 or context at labeled budget; identical selected documents for excerpt/full comparison. Full text read from hash-verified isolated fixtures, not timed memory_get calls.",
+  "limitations": [
+    "UTF-8 text bytes, not model tokens or latency.",
+    "Exact normalized fact presence, not generated-answer correctness.",
+    "Small authored synthetic corpus; misses and excerpt losses are expected diagnostic outcomes.",
+    "Full documents deduplicated within each case; no cache across cases.",
+    "Search already returns body: refetch bytes model avoidable repeated text, excluding MCP envelopes.",
+    "Explain payload is measured separately and is outside the context budget."
+  ],
+  "cases": [
+    {
+      "id": "en-direct",
+      "mode": "search",
+      "query": "webhook retry",
+      "outcome": "sufficient_excerpt",
+      "identities": [
+        {
+          "source_id": 1,
+          "path": "webhooks.md",
+          "content_hash": "d09fa2c21041752bbd71cecc3b5a472d07ee663baa9db38fe7742fad656dc550",
+          "chunk_id": 8,
+          "lines": null
+        }
+      ],
+      "excerpt_text_bytes": 60,
+      "selected_full_document_text_bytes": 157,
+      "text_saving_fraction": 0.6178343949044586,
+      "payload_bytes": 300,
+      "explained_payload_bytes": 1096,
+      "explain_additional_payload_bytes": 796,
+      "same_chunk_refetch_text_bytes": 60,
+      "excerpt_fact_coverage": {
+        "covered": 1,
+        "required": 1,
+        "missing": [],
+        "sufficient": true
+      },
+      "selected_full_document_fact_coverage": {
+        "covered": 1,
+        "required": 1,
+        "missing": [],
+        "sufficient": true
+      },
+      "explain_parity": true
+    },
+    {
+      "id": "en-cross-section",
+      "mode": "search",
+      "query": "backup storage",
+      "outcome": "excerpt_loss",
+      "identities": [
+        {
+          "source_id": 1,
+          "path": "backup.md",
+          "content_hash": "f4048b5f89ea505a71dcd9c2dbf6002601f2f328e0aea27721307f9dc30a9f23",
+          "chunk_id": 3,
+          "lines": null
+        }
+      ],
+      "excerpt_text_bytes": 61,
+      "selected_full_document_text_bytes": 161,
+      "text_saving_fraction": 0.6211180124223603,
+      "payload_bytes": 300,
+      "explained_payload_bytes": 1103,
+      "explain_additional_payload_bytes": 803,
+      "same_chunk_refetch_text_bytes": 61,
+      "excerpt_fact_coverage": {
+        "covered": 1,
+        "required": 2,
+        "missing": [
+          {
+            "path": "backup.md",
+            "text": "Include .agent-memory-history/ and .agent-memory-operations/ in the backup."
+          }
+        ],
+        "sufficient": false
+      },
+      "selected_full_document_fact_coverage": {
+        "covered": 2,
+        "required": 2,
+        "missing": [],
+        "sufficient": true
+      },
+      "explain_parity": true
+    },
+    {
+      "id": "ru-direct",
+      "mode": "search",
+      "query": "автопуш памяти",
+      "outcome": "sufficient_excerpt",
+      "identities": [
+        {
+          "source_id": 1,
+          "path": "autopush.md",
+          "content_hash": "dd0320c3ed31baedc8c9a1295207598c53bfcdb286b028c88fca1ccdf60612c6",
+          "chunk_id": 1,
+          "lines": null
+        }
+      ],
+      "excerpt_text_bytes": 158,
+      "selected_full_document_text_bytes": 258,
+      "text_saving_fraction": 0.3875968992248062,
+      "payload_bytes": 412,
+      "explained_payload_bytes": 1286,
+      "explain_additional_payload_bytes": 874,
+      "same_chunk_refetch_text_bytes": 158,
+      "excerpt_fact_coverage": {
+        "covered": 2,
+        "required": 2,
+        "missing": [],
+        "sufficient": true
+      },
+      "selected_full_document_fact_coverage": {
+        "covered": 2,
+        "required": 2,
+        "missing": [],
+        "sufficient": true
+      },
+      "explain_parity": true
+    },
+    {
+      "id": "ru-cross-section",
+      "mode": "search",
+      "query": "автопуш памяти",
+      "outcome": "excerpt_loss",
+      "identities": [
+        {
+          "source_id": 1,
+          "path": "autopush.md",
+          "content_hash": "dd0320c3ed31baedc8c9a1295207598c53bfcdb286b028c88fca1ccdf60612c6",
+          "chunk_id": 1,
+          "lines": null
+        }
+      ],
+      "excerpt_text_bytes": 158,
+      "selected_full_document_text_bytes": 258,
+      "text_saving_fraction": 0.3875968992248062,
+      "payload_bytes": 412,
+      "explained_payload_bytes": 1286,
+      "explain_additional_payload_bytes": 874,
+      "same_chunk_refetch_text_bytes": 158,
+      "excerpt_fact_coverage": {
+        "covered": 1,
+        "required": 2,
+        "missing": [
+          {
+            "path": "autopush.md",
+            "text": "Таймер работает только пока запущен MCP."
+          }
+        ],
+        "sufficient": false
+      },
+      "selected_full_document_fact_coverage": {
+        "covered": 2,
+        "required": 2,
+        "missing": [],
+        "sufficient": true
+      },
+      "explain_parity": true
+    },
+    {
+      "id": "en-flat",
+      "mode": "search",
+      "query": "token lease",
+      "outcome": "sufficient_excerpt",
+      "identities": [
+        {
+          "source_id": 1,
+          "path": "flat.md",
+          "content_hash": "f12ec8f0ee3e8bee775b6267a49dec09e1c85733614f3b1b3e7f9c5c34496154",
+          "chunk_id": 6,
+          "lines": null
+        }
+      ],
+      "excerpt_text_bytes": 68,
+      "selected_full_document_text_bytes": 69,
+      "text_saving_fraction": 0.01449275362318836,
+      "payload_bytes": 302,
+      "explained_payload_bytes": 1086,
+      "explain_additional_payload_bytes": 784,
+      "same_chunk_refetch_text_bytes": 68,
+      "excerpt_fact_coverage": {
+        "covered": 2,
+        "required": 2,
+        "missing": [],
+        "sufficient": true
+      },
+      "selected_full_document_fact_coverage": {
+        "covered": 2,
+        "required": 2,
+        "missing": [],
+        "sufficient": true
+      },
+      "explain_parity": true
+    },
+    {
+      "id": "wrong-topic",
+      "mode": "search",
+      "query": "configuration snapshot",
+      "outcome": "retrieval_miss",
+      "identities": [
+        {
+          "source_id": 1,
+          "path": "config.md",
+          "content_hash": "5a0504af9682cabc9fd3ee0d9d12467b5320c7e955a3cbf454392a61034966ba",
+          "chunk_id": 5,
+          "lines": null
+        }
+      ],
+      "excerpt_text_bytes": 105,
+      "selected_full_document_text_bytes": 106,
+      "text_saving_fraction": 0.009433962264150941,
+      "payload_bytes": 352,
+      "explained_payload_bytes": 1201,
+      "explain_additional_payload_bytes": 849,
+      "same_chunk_refetch_text_bytes": 105,
+      "excerpt_fact_coverage": {
+        "covered": 0,
+        "required": 1,
+        "missing": [
+          {
+            "path": "backup.md",
+            "text": "Include .agent-memory-history/ and .agent-memory-operations/ in the backup."
+          }
+        ],
+        "sufficient": false
+      },
+      "selected_full_document_fact_coverage": {
+        "covered": 0,
+        "required": 1,
+        "missing": [
+          {
+            "path": "backup.md",
+            "text": "Include .agent-memory-history/ and .agent-memory-operations/ in the backup."
+          }
+        ],
+        "sufficient": false
+      },
+      "explain_parity": true
+    },
+    {
+      "id": "negative",
+      "mode": "search",
+      "query": "qxvunknownzz",
+      "outcome": "negative_pass",
+      "identities": [],
+      "excerpt_text_bytes": 0,
+      "selected_full_document_text_bytes": 0,
+      "text_saving_fraction": null,
+      "payload_bytes": 11,
+      "explained_payload_bytes": 11,
+      "explain_additional_payload_bytes": 0,
+      "same_chunk_refetch_text_bytes": 0,
+      "excerpt_fact_coverage": {
+        "covered": 0,
+        "required": 0,
+        "missing": [],
+        "sufficient": true
+      },
+      "selected_full_document_fact_coverage": {
+        "covered": 0,
+        "required": 0,
+        "missing": [],
+        "sufficient": true
+      },
+      "explain_parity": true
+    },
+    {
+      "id": "long-context-small",
+      "mode": "context",
+      "query": "reconciliation window",
+      "outcome": "excerpt_loss",
+      "identities": [
+        {
+          "source_id": 1,
+          "path": "long.md",
+          "content_hash": "8b2e85571342bb2a3f70a478c16a179672cf49387baf87e72b92219ae2898625",
+          "chunk_id": null,
+          "lines": [
+            1,
+            68
+          ]
+        }
+      ],
+      "excerpt_text_bytes": 544,
+      "selected_full_document_text_bytes": 4511,
+      "text_saving_fraction": 0.879405896696963,
+      "payload_bytes": 1070,
+      "explained_payload_bytes": 2112,
+      "explain_additional_payload_bytes": 1042,
+      "same_chunk_refetch_text_bytes": null,
+      "excerpt_fact_coverage": {
+        "covered": 1,
+        "required": 2,
+        "missing": [
+          {
+            "path": "long.md",
+            "text": "The final cutoff is 07:30 UTC."
+          }
+        ],
+        "sufficient": false
+      },
+      "selected_full_document_fact_coverage": {
+        "covered": 2,
+        "required": 2,
+        "missing": [],
+        "sufficient": true
+      },
+      "explain_parity": true
+    },
+    {
+      "id": "long-context-large",
+      "mode": "context",
+      "query": "reconciliation window",
+      "outcome": "excerpt_loss",
+      "identities": [
+        {
+          "source_id": 1,
+          "path": "long.md",
+          "content_hash": "8b2e85571342bb2a3f70a478c16a179672cf49387baf87e72b92219ae2898625",
+          "chunk_id": null,
+          "lines": [
+            1,
+            68
+          ]
+        }
+      ],
+      "excerpt_text_bytes": 2400,
+      "selected_full_document_text_bytes": 4511,
+      "text_saving_fraction": 0.46796719131013076,
+      "payload_bytes": 2953,
+      "explained_payload_bytes": 4000,
+      "explain_additional_payload_bytes": 1047,
+      "same_chunk_refetch_text_bytes": null,
+      "excerpt_fact_coverage": {
+        "covered": 1,
+        "required": 2,
+        "missing": [
+          {
+            "path": "long.md",
+            "text": "The final cutoff is 07:30 UTC."
+          }
+        ],
+        "sufficient": false
+      },
+      "selected_full_document_fact_coverage": {
+        "covered": 2,
+        "required": 2,
+        "missing": [],
+        "sufficient": true
+      },
+      "explain_parity": true
+    }
+  ],
+  "summary": {
+    "cases": 9,
+    "operational_errors": 0,
+    "sufficient_excerpt": 3,
+    "excerpt_loss": 4,
+    "retrieval_miss": 1,
+    "negative_pass": 1,
+    "negative_violation": 0,
+    "excerpt_text_bytes": 3554,
+    "selected_full_document_text_bytes": 10031
+  }
+}

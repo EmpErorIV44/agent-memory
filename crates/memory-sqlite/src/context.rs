@@ -183,6 +183,27 @@ impl Store {
         max_tokens: usize,
         excluded: &HashSet<(i64, String)>,
     ) -> Result<Value> {
+        self.task_context_impl(project, task, max_tokens, excluded, false)
+    }
+
+    /// The unchanged budgeted context plus diagnostics outside its byte budget.
+    pub fn task_context_explained(
+        &self,
+        project: &str,
+        task: &str,
+        max_tokens: usize,
+    ) -> Result<Value> {
+        self.task_context_impl(project, task, max_tokens, &HashSet::new(), true)
+    }
+
+    fn task_context_impl(
+        &self,
+        project: &str,
+        task: &str,
+        max_tokens: usize,
+        excluded: &HashSet<(i64, String)>,
+        explain: bool,
+    ) -> Result<Value> {
         ensure!(
             (512..=32768).contains(&max_tokens),
             "max_tokens must be between 512 and 32768"
@@ -230,6 +251,18 @@ impl Store {
                 ));
             }
         }
+        let hit_diagnostics: BTreeMap<_, _> = if explain {
+            hits.iter().rev().map(|hit| {
+                let words = context_terms(&format!("{} {}", hit.heading, hit.body));
+                ((hit.source_id, hit.path.clone()), json!({
+                    "matched_normalized_task_terms": normalized_terms.intersection(&words).collect::<Vec<_>>(),
+                    "chunk_id": hit.chunk_id, "lines": [hit.start_line, hit.end_line],
+                    "match_scope": "selected_chunk_heading_and_body"
+                }))
+            }).collect()
+        } else {
+            BTreeMap::new()
+        };
         for hit in hits {
             if excluded.contains(&(hit.source_id, hit.path.clone())) {
                 continue;
@@ -251,14 +284,21 @@ impl Store {
         let selected = seen.clone();
         let by_id: BTreeMap<_, _> = records.iter().map(|r| (r.memory.id.as_str(), r)).collect();
         let mut related_ids = BTreeSet::new();
+        let mut relation_witnesses: BTreeMap<i64, Vec<Value>> = BTreeMap::new();
         for record in records.iter().filter(|r| active(r)) {
             for edge in &record.memory.relations {
                 if let Some(target) = by_id.get(edge.target.as_str()).filter(|r| active(r)) {
                     if selected.contains(&record.document_id) {
                         related_ids.insert(target.document_id);
+                        if explain {
+                            relation_witnesses.entry(target.document_id).or_default().push(json!({"from": record.memory.id, "to": target.memory.id, "kind": edge.kind}));
+                        }
                     }
                     if selected.contains(&target.document_id) {
                         related_ids.insert(record.document_id);
+                        if explain {
+                            relation_witnesses.entry(record.document_id).or_default().push(json!({"from": record.memory.id, "to": target.memory.id, "kind": edge.kind}));
+                        }
                     }
                 }
             }
@@ -288,6 +328,7 @@ impl Store {
         // Prepare complete metadata once. Admit short, useful excerpts before
         // allowing any one entry to consume the remaining budget.
         let mut prepared = Vec::new();
+        let mut candidate_diagnostics = Vec::new();
         for (source_id, path, hash, reason, lines) in candidates {
             let document = self
                 .get_document_by_path(project, source_id, &path, &hash)?
@@ -330,6 +371,14 @@ impl Store {
                 .find(|r| r.source_id == source_id && r.path == path);
             let end = prefix_boundary(&content, 160);
             let entry = json!({"source_id":source_id,"path":path,"content_hash":hash,"reason":reason,"memory":record.map(|r| &r.memory),"excerpt":&content[..end],"excerpt_truncated":end < content.len(),"lines":lines});
+            if explain {
+                candidate_diagnostics.push(json!({
+                    "source_id":source_id,"path":path,"reason":reason,
+                    "task_match":if reason == "task_match" { hit_diagnostics.get(&(source_id,path.clone())) } else { None },
+                    "relation_witnesses":if reason == "related_memory" { record.and_then(|r| relation_witnesses.get(&r.document_id)) } else { None },
+                    "available_excerpt_bytes":content.len()
+                }));
+            }
             prepared.push((entry, content, end));
         }
         let mut order = Vec::new();
@@ -360,6 +409,7 @@ impl Store {
                 .filter(|(_, (e, _, _))| e["reason"] == "related_memory")
                 .map(|(i, _)| i),
         );
+        let admission_order = order.clone();
         let mut selected = Vec::new();
         for id in order {
             report["entries"]
@@ -418,6 +468,55 @@ impl Store {
             }
             report["estimated_tokens"] = json!(size);
         }
-        Ok(report)
+        if !explain {
+            return Ok(report);
+        }
+        let mut groups = BTreeMap::<String, usize>::new();
+        let entries = report["entries"].as_array().expect("entries");
+        for entry in entries {
+            *groups
+                .entry(entry["reason"].as_str().expect("reason").to_owned())
+                .or_default() += serde_json::to_vec(entry)?.len();
+        }
+        let excerpt_json_bytes: usize = entries
+            .iter()
+            .map(|entry| {
+                serde_json::to_vec(&entry["excerpt"])
+                    .expect("JSON excerpt")
+                    .len()
+            })
+            .sum();
+        let entry_bytes: usize = groups.values().sum();
+        let used_bytes = serde_json::to_vec(&report)?.len();
+        for (id, candidate) in candidate_diagnostics.iter_mut().enumerate() {
+            let position = selected.iter().position(|&selected_id| selected_id == id);
+            candidate["admission_order"] =
+                json!(admission_order.iter().position(|&i| i == id).map(|p| p + 1));
+            candidate["outcome"] = json!(if position.is_some() {
+                "included"
+            } else {
+                "omitted_budget"
+            });
+            candidate["entry_bytes"] =
+                json!(position.map(|p| serde_json::to_vec(&entries[p]).expect("JSON entry").len()));
+            candidate["excerpt_bytes"] =
+                json!(position.map(|p| entries[p]["excerpt"].as_str().expect("excerpt").len()));
+            candidate["excerpt_truncated"] = json!(position
+                .map(|p| entries[p]["excerpt_truncated"]
+                    .as_bool()
+                    .expect("truncated")));
+        }
+        Ok(json!({"context":report,"explanation":{
+            "scope":"prepared_candidates_only", "candidate_limit":50,
+            "candidate_limit_scope":"lexical_hits_before_context_resort", "exhaustive":false,
+            "query_expression":query,"normalized_task_terms":normalized_terms,
+            "admission_policy":"alternate_constraints_and_task_matches_then_relations",
+            "growth_policy":"160_initial_bytes_then_128_byte_rounds_up_to_2400",
+            "diagnostics_outside_context_budget":true,
+            "budget":{"limit_bytes":max_tokens,"used_bytes":used_bytes,"remaining_bytes":max_tokens-used_bytes,
+                "entry_bytes_by_reason":groups,"metadata_and_container_bytes":used_bytes-entry_bytes,
+                "excerpt_json_bytes":excerpt_json_bytes,"entry_metadata_bytes":entry_bytes-excerpt_json_bytes},
+            "candidates":candidate_diagnostics
+        }}))
     }
 }

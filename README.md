@@ -69,6 +69,8 @@ Use `search --paths-only` for unique paths, `--json` for structured hits,
 `--literal` for a whole phrase containing punctuation or operator words.
 Use `--mode natural` (MCP `mode: "natural"`) for ordinary word queries ranked by
 word coverage and exactness; FTS remains the default.
+Natural mode optionally accepts `--min-coverage 0.6` (MCP `min_coverage: 0.6`)
+to reject weak document word matches before the limit; no threshold is automatic.
 See [search behavior and examples](docs/search.md).
 The CLI reads the current index: run `index` after external changes.
 MCP refreshes the index before searching and reading.
@@ -184,7 +186,7 @@ make release
 make run ARGS="--help"
 ```
 
-`make check` runs formatting, strict Clippy, release packaging tests, and the
+`make check` runs formatting, strict Clippy, release packaging and benchmark-runner tests, and the
 full Rust test suite. `make test` runs Rust tests sequentially and resolves the
 temporary directory path for macOS, matching the release workflow. Compilation
 defaults to one job to limit memory use; override it with `JOBS=4`. The `CARGO`
@@ -198,6 +200,9 @@ The [synthetic retrieval benchmark](docs/retrieval-evaluation.md) measures searc
 and task-context quality against frozen English and Russian test notes in an
 isolated temporary database. Its [initial baseline](tests/retrieval/README.md)
 records measured gaps separately from operational failures.
+
+Opt-in search/context [`explain` diagnostics and the context economy benchmark](docs/explain-and-context-economy.md)
+show ranking evidence, candidate selection, exact byte accounting and labeled fact coverage.
 
 ## License
 

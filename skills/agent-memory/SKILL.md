@@ -61,9 +61,12 @@ project's baseline memory; do not wait for a task-specific search to reveal it.
    neither tool returns the full source Markdown.
 3. Complete required baseline and selected preference reads with
    `memory_get(project, source_id, path, content_hash)` using coordinates from
-   the list. For additional task knowledge, use `memory_search` and read only the
-   relevant chunk with `memory_get(project, chunk_id, content_hash)`, leaving
-   `include_document` false. A chunk can answer a narrow question; do not describe
+   the list. For additional task knowledge, use the chunk `body` already returned
+   by `memory_search` when it answers the question. Do not call `memory_get` for
+   the same unchanged chunk just to read it again. For a chunk not already
+   available in full (for example, a truncated context excerpt), use
+   `memory_get(project, chunk_id, content_hash)` with `include_document` false.
+   A chunk can answer a narrow question; do not describe
    it as a complete-note read. Read the full note when the answer depends on
    omitted context or before updating it. Prefer `source_id + path` for full reads:
    this returns only `document`, while `chunk_id + include_document=true` returns
@@ -104,7 +107,8 @@ plain text; the default 4000 budget conservatively counts UTF-8 bytes of its JSO
 payload rather than model-specific tokens. Check `omitted_count`,
 `omitted_accepted_constraints` (when available), and `excerpt_truncated`; snippets
 do not replace required baseline or pre-update full-note reads. For narrow
-questions, read the relevant chunk instead of automatically loading the full note.
+questions, reuse a sufficient search chunk already returned; fetch the chunk only
+when its full text is missing, rather than automatically loading the full note.
 Source coordinates and hashes can be passed to `memory_get` for complete notes.
 The context does not verify evidence or establish remote freshness.
 Use `memory_contradictions` to inspect explicit active contradiction pairs,
@@ -142,6 +146,11 @@ Cyrillic prefix queries such as `правил*` retain literal prefix semantics.
 Queries default to FTS5 syntax. When supported, set `mode: "natural"` for ordinary
 word queries ranked by coverage and exactness; it does not provide synonyms or
 semantic matching and cannot combine with `literal: true`.
+When supported, optional natural-only `min_coverage` (finite 0..1) filters by
+normalized document word coverage before limit. Omitted preserves existing
+results. Use only when the task warrants trading recall for fewer weak matches;
+coverage does not establish semantic relevance. With `explain: true`, the filter
+also reports rejected document paths and counts, including for empty results.
 Queries use FTS5 syntax. Double-quote literal terms containing punctuation such
 as hyphens, colons, dots or slashes; double any embedded `"` inside the quoted
 term. Preserve punctuation rather than deleting it. Keep intentional operators
