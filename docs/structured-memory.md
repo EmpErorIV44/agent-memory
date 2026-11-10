@@ -186,7 +186,12 @@ The `{"document":...}` response contains `content` with the complete Markdown,
 including frontmatter, and the full file's `content_hash`. Use coordinates and a
 hash from an actual record. `memory_get_record` returns a structured projection,
 not complete Markdown. The `memory_get` mode using `chunk_id` and a hash remains
-available; add `include_document=true` for the full file alongside the chunk.
+available and returns only the chunk by default. Use this for narrow task
+questions when the chunk provides enough context. Prefer `source_id + path` for
+full-note reads: adding `include_document=true` in chunk mode returns the full
+file alongside the chunk, repeating part of the text. Chunks do not replace
+required baseline/selected preference reads or the complete current document
+before an update; read more when omitted context affects the answer.
 
 Create and update structured records through ordinary `memory_write`: provide
 complete Markdown and, for updates, the current full-document `expected_hash`.

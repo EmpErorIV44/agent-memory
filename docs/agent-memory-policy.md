@@ -29,8 +29,14 @@ If bootstrap is unavailable, start with memory_list and inspect accepted constra
 Read missing or additional full documents with memory_get(project, source_id, path,
 content_hash), using the source coordinates and full-document hash from the list.
 memory_get_record returns structured knowledge, not the full Markdown document.
-Use memory_search for additional context or unstructured notes; chunk-based
-memory_get(include_document=true) remains available. Search metadata includes
+Use memory_search for additional task knowledge. For a narrow question, use
+memory_get(project, chunk_id, content_hash) with include_document=false to read
+only the relevant chunk; do not automatically load the full note. A chunk is not
+a complete-note read. Complete required baseline/selected preference reads and
+read the full note before updates or when omitted context matters. Prefer
+source_id + path for full reads: it returns only document, avoiding the repeated
+chunk in memory_get(include_document=true), which remains a compatibility fallback.
+Search metadata includes
 path, IDs and memory summary. Russian search uses Snowball stemming; exact
 matches rank first. Use optional kind/status filters for structured knowledge.
 Queries containing Cyrillic prefixes retain literal prefix semantics.
@@ -42,7 +48,7 @@ Use memory_context(project, task, max_tokens) for a task-focused bundle of accep
 constraints, lexical matches and one-hop active related knowledge. Task is plain
 text. Its budget conservatively counts UTF-8 bytes of the compact JSON payload;
 MCP envelopes and duplicate text content are outside that budget. Inspect omission
-counts and truncated excerpts, then read complete relevant notes. It does not
+counts and truncated excerpts, then read relevant chunks or full notes as needed. It does not
 replace bootstrap, verify evidence or establish remote freshness.
 Use memory_contradictions to inspect explicit active contradiction pairs, active
 supersession chain endpoints and relation cycles. Review full notes and evidence
@@ -78,7 +84,7 @@ authorization before writing. If writes are
 disabled, offer a draft when useful; do not bypass permissions by writing source
 Markdown directly. Before writing, use memory_sources to select a writable source.
 Prefer creating a focused note. Before updating, use memory_get with source_id,
-path and content_hash (or chunk mode with include_document=true), and preserve
+path and content_hash (prefer this over chunk mode with include_document=true), and preserve
 the complete document and its frontmatter. Pass document.content_hash, the
 full-document hash, as expected_hash. A search chunk is not a complete file.
 On conflict, read again and reconcile; do not force overwrite contradictory facts.

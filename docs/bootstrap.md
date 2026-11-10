@@ -64,7 +64,11 @@ context selection (32768-byte candidate payload, at most 50 lexical hits plus
 constraints/relations). It is not a count of all missing relevant notes; required/contextual notes are
 excluded from this general candidate pool before full-text excerpt reads. The candidate pool and its excerpts are bounded and do
 not establish exhaustive retrieval. `ok` can still have omissions or truncated
-excerpts. Read full task notes before relying on details or editing them.
+excerpts. For narrow task questions, read the relevant chunk with `memory_get`
+without `include_document=true`; read full task notes when omitted context matters
+or before editing them. Prefer `source_id + path` for full reads to avoid returning
+the chunk alongside the document. Required baseline and selected preference
+documents still need complete reads.
 
 ## Git freshness and changes
 

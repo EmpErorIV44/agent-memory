@@ -149,8 +149,10 @@ To update an existing file:
 
 1. Find the note with `memory_list` or `memory_search`.
 2. Call `memory_get` with `project`, `source_id`, `path`, and `content_hash`.
-   Alternatively, use chunk mode: `chunk_id`, `content_hash`, and
-   `"include_document":true`. `document.content` contains the entire source
+   Prefer this path mode, which returns only the document. The compatibility
+   alternative, chunk mode with `chunk_id`, `content_hash`, and
+   `"include_document":true`, returns both chunk and document and repeats text.
+   `document.content` contains the entire source
    Markdown, including frontmatter; `document.content_hash` is the full file's
    hash. Ordinary `chunk.body` is only an excerpt.
 3. Edit the full text, preserving other sections.
@@ -219,6 +221,12 @@ parse the JSON text block. Send only that selected value (or the needed fields) 
 the agent context. Do not log/print the entire tool envelope, repeat both copies,
 or re-read an unchanged note already loaded in this session. Server formatting
 cannot control extra copies introduced by a client.
+
+For a narrow task question, use `memory_get(project, chunk_id, content_hash)`
+without `include_document=true` to read only the relevant chunk. Load the full
+note with `source_id + path` when omitted context matters, for required baseline
+and selected preference reads, and before updating it. A chunk must not be
+reported as a complete-note read or used to replace the whole source file.
 
 `memory_list` defaults to compact summaries with complete-note read coordinates.
 Request details only for records that need evidence or relationship inspection.

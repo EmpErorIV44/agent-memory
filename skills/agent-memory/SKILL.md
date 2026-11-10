@@ -59,12 +59,15 @@ project's baseline memory; do not wait for a task-specific search to reveal it.
    If bootstrap is unavailable, start with `memory_list` and inspect accepted constraints and recorded user
    preferences. `memory_get_record` reads a structured record by its logical ID;
    neither tool returns the full source Markdown.
-3. For relevant documents not already returned in full, read complete documents with
+3. Complete required baseline and selected preference reads with
    `memory_get(project, source_id, path, content_hash)` using coordinates from
-   the list. It returns `document.content` and the full `document.content_hash`.
-   Use `memory_search` for additional context or unstructured notes, then
-   `memory_get(project, chunk_id, content_hash, include_document=true)` when
-   reading by search chunk. Search excerpts alone are not a complete reading.
+   the list. For additional task knowledge, use `memory_search` and read only the
+   relevant chunk with `memory_get(project, chunk_id, content_hash)`, leaving
+   `include_document` false. A chunk can answer a narrow question; do not describe
+   it as a complete-note read. Read the full note when the answer depends on
+   omitted context or before updating it. Prefer `source_id + path` for full reads:
+   this returns only `document`, while `chunk_id + include_document=true` returns
+   both the chunk and document, repeating part of the text.
 4. Apply relevant recorded user preferences and accepted constraints within the
    current task's authorization. Distinguish plans from verified implementation,
    check stale paths and claims against the workspace, and briefly state any
@@ -100,7 +103,8 @@ constraints, lexical task matches and one-hop active related knowledge. Task is
 plain text; the default 4000 budget conservatively counts UTF-8 bytes of its JSON
 payload rather than model-specific tokens. Check `omitted_count`,
 `omitted_accepted_constraints` (when available), and `excerpt_truncated`; snippets
-do not replace baseline bootstrap or full-note reads.
+do not replace required baseline or pre-update full-note reads. For narrow
+questions, read the relevant chunk instead of automatically loading the full note.
 Source coordinates and hashes can be passed to `memory_get` for complete notes.
 The context does not verify evidence or establish remote freshness.
 Use `memory_contradictions` to inspect explicit active contradiction pairs,
@@ -231,8 +235,9 @@ to narrative Markdown, not structured YAML metadata.
    Use `memory_write(project, source_id, path, content)` without `expected_hash` to
    create; this never overwrites an existing file.
 3. To update, obtain the full file with
-   `memory_get(project, source_id, path, content_hash)`, or use chunk mode with
-   `memory_get(project, chunk_id, content_hash, include_document=true)`.
+   `memory_get(project, source_id, path, content_hash)`. Use chunk mode with
+   `include_document=true` only as a compatibility fallback when source
+   coordinates are unavailable; it also returns the chunk and duplicates text.
    Preserve unrelated sections and frontmatter. Send the entire document as
    `content` and its `document.content_hash` as `expected_hash`. A search chunk is
    only an excerpt and must not replace a whole file.
